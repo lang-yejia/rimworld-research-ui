@@ -66,11 +66,11 @@ internal static class ResearchWindowRenderer
             GUI.color = Color.white;
         }
 
-        var tabArea = new Rect(rect.x, rect.y, searchRect.x - rect.x - 12f, 34f);
+        var tabArea = new Rect(rect.x, rect.y, searchRect.x - rect.x - 12f, 42f);
         var tabWidths = tabs.Select(tab => Mathf.Clamp(Text.CalcSize(tab.LabelCap).x + 24f, 90f, 190f)).ToList();
         var totalTabWidth = Mathf.Max(tabArea.width - 16f, tabWidths.Sum() + Mathf.Max(0, tabs.Count - 1) * 5f);
         var tabView = new Rect(0f, 0f, totalTabWidth, 30f);
-        Widgets.BeginScrollView(tabArea, ref tabScroll, tabView, showScrollbars: false);
+        Widgets.BeginScrollView(tabArea, ref tabScroll, tabView);
         var x = 0f;
         for (var index = 0; index < tabs.Count; index++)
         {

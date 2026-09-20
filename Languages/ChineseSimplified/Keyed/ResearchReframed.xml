@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <RR_Search>搜索科技……</RR_Search>
-  <RR_ShiftHint>打开科技页面时按住 Shift 可使用原版界面。</RR_ShiftHint>
+  <RR_ShiftHint>按住 Shift 可暂时查看原版科技界面。</RR_ShiftHint>
   <RR_NoProjects>没有符合当前搜索条件的科技。</RR_NoProjects>
   <RR_Details>科技详情</RR_Details>
   <RR_SelectPrompt>选择一个科技项目以查看详情。</RR_SelectPrompt>

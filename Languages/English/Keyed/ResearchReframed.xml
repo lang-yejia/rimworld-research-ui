@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <RR_Search>Search research...</RR_Search>
-  <RR_ShiftHint>Hold Shift while opening Research to use the vanilla interface.</RR_ShiftHint>
+  <RR_ShiftHint>Hold Shift to temporarily view the vanilla research interface.</RR_ShiftHint>
   <RR_NoProjects>No research projects match the current search.</RR_NoProjects>
   <RR_Details>Research details</RR_Details>
   <RR_SelectPrompt>Select a research project to inspect it.</RR_SelectPrompt>

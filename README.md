@@ -8,7 +8,7 @@ Research Reframed is a vanilla-styled, data-driven redesign of RimWorld's resear
 - Discover standard `ResearchProjectDef` and `ResearchTabDef` content from other mods automatically.
 - Improve readability with clearer nodes, status colors, search, a dedicated detail panel, and better use of screen space.
 - Fall back to the vanilla research window if the custom renderer fails.
-- Allow holding Shift while opening Research to use the vanilla interface.
+- Allow holding Shift to temporarily view the vanilla interface.
 
 ## Current prototype
 
