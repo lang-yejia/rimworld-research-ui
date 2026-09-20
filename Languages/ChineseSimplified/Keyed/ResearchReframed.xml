@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <RR_Search>搜索科技……</RR_Search>
+  <RR_ShiftHint>打开科技页面时按住 Shift 可使用原版界面。</RR_ShiftHint>
+  <RR_NoProjects>没有符合当前搜索条件的科技。</RR_NoProjects>
+  <RR_Details>科技详情</RR_Details>
+  <RR_SelectPrompt>选择一个科技项目以查看详情。</RR_SelectPrompt>
+  <RR_Prerequisites>前置科技</RR_Prerequisites>
+  <RR_NoPrerequisites>无</RR_NoPrerequisites>
+  <RR_StartResearch>开始研究</RR_StartResearch>
+  <RR_CurrentResearch>当前研究</RR_CurrentResearch>
+  <RR_Completed>已完成</RR_Completed>
+  <RR_Locked>未解锁</RR_Locked>
+  <RR_Available>可研究</RR_Available>
+  <RR_Cost>基础研究量：{0}</RR_Cost>
+  <RR_FallbackWarning>科技界面焕新发生错误，已恢复原版研究窗口。</RR_FallbackWarning>
+</LanguageData>

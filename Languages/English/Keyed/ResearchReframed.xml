@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <RR_Search>Search research...</RR_Search>
+  <RR_ShiftHint>Hold Shift while opening Research to use the vanilla interface.</RR_ShiftHint>
+  <RR_NoProjects>No research projects match the current search.</RR_NoProjects>
+  <RR_Details>Research details</RR_Details>
+  <RR_SelectPrompt>Select a research project to inspect it.</RR_SelectPrompt>
+  <RR_Prerequisites>Prerequisites</RR_Prerequisites>
+  <RR_NoPrerequisites>None</RR_NoPrerequisites>
+  <RR_StartResearch>Start research</RR_StartResearch>
+  <RR_CurrentResearch>Current research</RR_CurrentResearch>
+  <RR_Completed>Completed</RR_Completed>
+  <RR_Locked>Locked</RR_Locked>
+  <RR_Available>Available</RR_Available>
+  <RR_Cost>Base cost: {0}</RR_Cost>
+  <RR_FallbackWarning>Research Reframed encountered an error and restored the vanilla research window.</RR_FallbackWarning>
+</LanguageData>
