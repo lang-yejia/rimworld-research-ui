@@ -11,7 +11,7 @@ internal static class ResearchWindowPatch
 {
     private static bool failed;
 
-    private static bool Prefix(Rect rect)
+    private static bool Prefix(Rect __0)
     {
         if (failed || Event.current.shift)
         {
@@ -20,7 +20,7 @@ internal static class ResearchWindowPatch
 
         try
         {
-            ResearchWindowRenderer.Draw(rect);
+            ResearchWindowRenderer.Draw(__0);
             return false;
         }
         catch (Exception exception)
