@@ -11,12 +11,9 @@ internal static class ResearchWindowRenderer
 {
     private const float HeaderHeight = 76f;
     private const float DetailsWidth = 350f;
-    private const float BaseNodeWidth = 220f;
-    private const float BaseNodeHeight = 112f;
-    private const float BaseColumnWidth = 260f;
-    private const float BaseRowHeight = 138f;
     private const float MinZoom = 0.58f;
     private const float MaxZoom = 1.25f;
+    private const float DragThreshold = 6f;
 
     private static readonly Color Background = new(0.105f, 0.115f, 0.12f);
     private static readonly Color Completed = new(0.19f, 0.29f, 0.22f);
@@ -37,6 +34,9 @@ internal static class ResearchWindowRenderer
     private static float zoom = 1f;
     private static Rect lastGraphRect;
     private static Vector2 lastBaseGraphSize;
+    private static bool dragCandidate;
+    private static bool draggingCanvas;
+    private static Vector2 dragStart;
 
     public static void Draw(Rect rect)
     {
@@ -45,12 +45,19 @@ internal static class ResearchWindowRenderer
         DrawHeader(new Rect(content.x, content.y, content.width, HeaderHeight - 6f));
 
         var graphRect = new Rect(content.x, content.y + HeaderHeight, content.width, content.height - HeaderHeight);
-        DrawGraph(graphRect);
+        var detailsRect = selectedProject == null
+            ? Rect.zero
+            : new Rect(graphRect.xMax - DetailsWidth - 10f, graphRect.y + 10f,
+                DetailsWidth, graphRect.height - 20f);
+        DrawGraph(graphRect, detailsRect);
 
         if (selectedProject != null)
         {
-            var detailsRect = new Rect(graphRect.xMax - DetailsWidth - 10f, graphRect.y + 10f,
-                DetailsWidth, graphRect.height - 20f);
+            if (detailsRect.width <= 0f)
+            {
+                detailsRect = new Rect(graphRect.xMax - DetailsWidth - 10f, graphRect.y + 10f,
+                    DetailsWidth, graphRect.height - 20f);
+            }
             Widgets.DrawShadowAround(detailsRect);
             DrawDetails(detailsRect);
         }
@@ -133,7 +140,7 @@ internal static class ResearchWindowRenderer
         Widgets.EndScrollView();
     }
 
-    private static void DrawGraph(Rect outerRect)
+    private static void DrawGraph(Rect outerRect, Rect detailsRect)
     {
         lastGraphRect = outerRect;
         Widgets.DrawMenuSection(outerRect);
@@ -146,49 +153,31 @@ internal static class ResearchWindowRenderer
             return;
         }
 
-        var baseLayout = BuildLayout(projects, 1f);
+        var baseLayout = ResearchGraphLayout.Build(selectedTab, projects, 1f);
         lastBaseGraphSize = GraphSize(baseLayout, outerRect);
-        var layout = BuildLayout(projects, zoom);
+        var layout = ResearchGraphLayout.Build(selectedTab, projects, zoom);
         var viewSize = GraphSize(layout, outerRect);
         var viewRect = new Rect(0f, 0f, viewSize.x, viewSize.y);
         var scrollRect = outerRect.ContractedBy(4f);
+        var graphInputBlocked = detailsRect.width > 0f && detailsRect.Contains(Event.current.mousePosition);
 
-        HandleGraphInput(scrollRect, viewRect);
+        HandleGraphInput(scrollRect, viewRect, graphInputBlocked);
         Widgets.BeginScrollView(scrollRect, ref graphScroll, viewRect);
         FocusPendingProject(layout, scrollRect);
         DrawConnections(projects, layout);
-        var visibleCanvas = new Rect(graphScroll.x - BaseNodeWidth, graphScroll.y - BaseNodeHeight,
-            scrollRect.width + BaseNodeWidth * 2f, scrollRect.height + BaseNodeHeight * 2f);
+        var visibleCanvas = new Rect(
+            graphScroll.x - ResearchGraphLayout.NodeWidth,
+            graphScroll.y - ResearchGraphLayout.NodeHeight,
+            scrollRect.width + ResearchGraphLayout.NodeWidth * 2f,
+            scrollRect.height + ResearchGraphLayout.NodeHeight * 2f);
         foreach (var project in projects)
         {
             if (layout[project].Overlaps(visibleCanvas))
             {
-                DrawNode(project, layout[project]);
+                DrawNode(project, layout[project], !graphInputBlocked && !draggingCanvas);
             }
         }
         Widgets.EndScrollView();
-    }
-
-    private static Dictionary<ResearchProjectDef, Rect> BuildLayout(IEnumerable<ResearchProjectDef> projects, float scale)
-    {
-        var layout = new Dictionary<ResearchProjectDef, Rect>();
-        var occupied = new HashSet<(int column, int row)>();
-        foreach (var project in projects)
-        {
-            var column = Mathf.Max(0, Mathf.RoundToInt(project.researchViewX));
-            var row = Mathf.Max(0, Mathf.RoundToInt(project.researchViewY / 0.7f));
-            while (!occupied.Add((column, row)))
-            {
-                row++;
-            }
-
-            layout[project] = new Rect(
-                (35f + column * BaseColumnWidth) * scale,
-                (35f + row * BaseRowHeight) * scale,
-                BaseNodeWidth * scale,
-                BaseNodeHeight * scale);
-        }
-        return layout;
     }
 
     private static Vector2 GraphSize(IReadOnlyDictionary<ResearchProjectDef, Rect> layout, Rect outerRect)
@@ -204,6 +193,19 @@ internal static class ResearchWindowRenderer
     {
         var visible = new HashSet<ResearchProjectDef>(projects);
         var highlighted = ResearchGraphModel.PrerequisitePath(selectedProject);
+        var children = projects.ToDictionary(project => project, _ => new List<ResearchProjectDef>());
+        foreach (var child in projects)
+        {
+            foreach (var parent in (child.prerequisites ?? new List<ResearchProjectDef>()).Where(visible.Contains))
+            {
+                children[parent].Add(child);
+            }
+        }
+        foreach (var childList in children.Values)
+        {
+            childList.Sort((left, right) => layout[left].center.y.CompareTo(layout[right].center.y));
+        }
+
         foreach (var project in projects)
         {
             if (project.prerequisites == null)
@@ -211,15 +213,25 @@ internal static class ResearchWindowRenderer
                 continue;
             }
 
-            foreach (var prerequisite in project.prerequisites.Where(visible.Contains))
+            var visiblePrerequisites = project.prerequisites.Where(visible.Contains)
+                .OrderBy(prerequisite => layout[prerequisite].center.y)
+                .ToList();
+            for (var prerequisiteIndex = 0; prerequisiteIndex < visiblePrerequisites.Count; prerequisiteIndex++)
             {
+                var prerequisite = visiblePrerequisites[prerequisiteIndex];
                 var from = layout[prerequisite];
                 var to = layout[project];
-                var middleX = (from.xMax + to.xMin) * 0.5f;
-                var start = new Vector2(from.xMax, from.center.y);
-                var firstCorner = new Vector2(middleX, from.center.y);
-                var secondCorner = new Vector2(middleX, to.center.y);
-                var end = new Vector2(to.xMin, to.center.y);
+                var childIndex = children[prerequisite].IndexOf(project);
+                var startY = PortY(from, childIndex, children[prerequisite].Count);
+                var endY = PortY(to, prerequisiteIndex, visiblePrerequisites.Count);
+                var availableWidth = Mathf.Max(50f, to.xMin - from.xMax);
+                var laneOffset = ((childIndex % 5) - 2) * 7f * zoom;
+                var middleX = Mathf.Clamp(from.xMax + availableWidth * 0.46f + laneOffset,
+                    from.xMax + 20f * zoom, to.xMin - 20f * zoom);
+                var start = new Vector2(from.xMax, startY);
+                var firstCorner = new Vector2(middleX, startY);
+                var secondCorner = new Vector2(middleX, endY);
+                var end = new Vector2(to.xMin, endY);
                 var isHighlighted = selectedProject == project && highlighted.Contains(prerequisite) ||
                                     highlighted.Contains(project) && highlighted.Contains(prerequisite);
                 var color = isHighlighted ? HighlightConnection : Connection;
@@ -231,7 +243,18 @@ internal static class ResearchWindowRenderer
         }
     }
 
-    private static void DrawNode(ResearchProjectDef project, Rect rect)
+    private static float PortY(Rect node, int index, int count)
+    {
+        if (count <= 1)
+        {
+            return node.center.y;
+        }
+
+        var usableHeight = node.height * 0.52f;
+        return node.center.y - usableHeight * 0.5f + usableHeight * index / (count - 1);
+    }
+
+    private static void DrawNode(ResearchProjectDef project, Rect rect, bool allowInput)
     {
         var isCurrent = Find.ResearchManager.IsCurrentProject(project);
         var matches = ResearchGraphModel.Matches(project, search);
@@ -253,7 +276,7 @@ internal static class ResearchWindowRenderer
             Widgets.DrawBox(rect, borderThickness);
         }
         Widgets.DrawHighlightIfMouseover(rect);
-        if (Widgets.ButtonInvisible(rect))
+        if (allowInput && Widgets.ButtonInvisible(rect))
         {
             selectedProject = project;
             detailsScroll = Vector2.zero;
@@ -273,7 +296,7 @@ internal static class ResearchWindowRenderer
         Widgets.DrawBoxSolid(filled, project.IsFinished ? new Color(0.38f, 0.66f, 0.42f) : Progress);
 
         Text.Font = GameFont.Tiny;
-        Text.Anchor = TextAnchor.LowerCenter;
+        Text.Anchor = TextAnchor.MiddleCenter;
         var status = project.IsFinished
             ? "RR_Completed".Translate()
             : isCurrent
@@ -281,8 +304,15 @@ internal static class ResearchWindowRenderer
                 : project.CanStartNow
                     ? "RR_Available".Translate()
                     : "RR_Locked".Translate();
-        Widgets.Label(new Rect(inner.x, progressRect.y - 19f * zoom, inner.width, 17f * zoom), status);
-        TooltipHandler.TipRegion(rect, NodeTooltip(project));
+        if (zoom >= 0.72f)
+        {
+            var statusHeight = Mathf.Max(Text.LineHeight + 2f, 22f);
+            Widgets.Label(new Rect(inner.x, progressRect.y - statusHeight - 2f, inner.width, statusHeight), status);
+        }
+        if (allowInput)
+        {
+            TooltipHandler.TipRegion(rect, NodeTooltip(project));
+        }
         Text.Anchor = TextAnchor.UpperLeft;
         Text.Font = GameFont.Small;
     }
@@ -349,15 +379,15 @@ internal static class ResearchWindowRenderer
         var descriptionHeight = Text.CalcHeight(description, contentWidth);
         var prerequisites = project.prerequisites ?? new List<ResearchProjectDef>();
         var unlocks = ResearchGraphModel.UnlocksFor(project);
-        var viewHeight = 205f + descriptionHeight + prerequisites.Count * 25f + unlocks.Count * 25f;
+        var viewHeight = 255f + descriptionHeight + prerequisites.Count * 25f + unlocks.Count * 25f;
         var scrollOuter = new Rect(inner.x, inner.y + 42f, inner.width, inner.height - 94f);
         Widgets.BeginScrollView(scrollOuter, ref detailsScroll, new Rect(0f, 0f, contentWidth, viewHeight));
 
         var y = 0f;
         Widgets.Label(new Rect(0f, y, contentWidth, 28f), "RR_Cost".Translate(project.CostApparent.ToString("0")));
-        y += 30f;
-        Widgets.Label(new Rect(0f, y, contentWidth, 28f), "RR_Progress".Translate(project.ProgressPercent.ToString("P0")));
-        y += 36f;
+        y += 32f;
+        DrawDetailedProgress(project, new Rect(0f, y, contentWidth, 30f));
+        y += 44f;
         Widgets.Label(new Rect(0f, y, contentWidth, descriptionHeight), description);
         y += descriptionHeight + 18f;
         Text.Font = GameFont.Medium;
@@ -414,25 +444,71 @@ internal static class ResearchWindowRenderer
         }
     }
 
-    private static void HandleGraphInput(Rect graphRect, Rect viewRect)
+    private static void DrawDetailedProgress(ResearchProjectDef project, Rect rect)
+    {
+        Widgets.DrawBoxSolid(rect, new Color(0.06f, 0.065f, 0.07f, 0.95f));
+        var fillRect = rect.ContractedBy(2f);
+        fillRect.width *= Mathf.Clamp01(project.ProgressPercent);
+        Widgets.DrawBoxSolid(fillRect,
+            project.IsFinished ? new Color(0.35f, 0.62f, 0.40f) : Progress);
+        Widgets.DrawBox(rect, 1);
+
+        var progress = Mathf.Min(project.ProgressApparent, project.CostApparent);
+        var pointText = $"{progress:0} / {project.CostApparent:0} ({project.ProgressPercent:P0})";
+        var completedText = "RR_Completed".Translate();
+        Text.Font = GameFont.Small;
+        Text.Anchor = TextAnchor.MiddleCenter;
+        Widgets.Label(rect, project.IsFinished ? $"{completedText} · {pointText}" : pointText);
+        Text.Anchor = TextAnchor.UpperLeft;
+    }
+
+    private static void HandleGraphInput(Rect graphRect, Rect viewRect, bool inputBlocked)
     {
         var currentEvent = Event.current;
-        if (!graphRect.Contains(currentEvent.mousePosition))
+        if (currentEvent.type == EventType.MouseUp && currentEvent.button == 0 && dragCandidate)
         {
+            if (draggingCanvas)
+            {
+                currentEvent.Use();
+            }
+            dragCandidate = false;
+            draggingCanvas = false;
             return;
         }
 
-        if (currentEvent.type == EventType.ScrollWheel && currentEvent.control)
+        if (inputBlocked)
+        {
+            dragCandidate = false;
+            draggingCanvas = false;
+            return;
+        }
+
+        var pointerInside = graphRect.Contains(currentEvent.mousePosition);
+        if (pointerInside && currentEvent.type == EventType.ScrollWheel && currentEvent.control)
         {
             SetZoom(zoom - currentEvent.delta.y * 0.04f);
             currentEvent.Use();
         }
-        else if (currentEvent.type == EventType.MouseDrag && currentEvent.button == 2)
+        else if (pointerInside && currentEvent.type == EventType.MouseDown && currentEvent.button == 0)
         {
-            graphScroll -= currentEvent.delta;
-            graphScroll.x = Mathf.Clamp(graphScroll.x, 0f, Mathf.Max(0f, viewRect.width - graphRect.width));
-            graphScroll.y = Mathf.Clamp(graphScroll.y, 0f, Mathf.Max(0f, viewRect.height - graphRect.height));
-            currentEvent.Use();
+            dragCandidate = true;
+            draggingCanvas = false;
+            dragStart = currentEvent.mousePosition;
+        }
+        else if (dragCandidate && currentEvent.type == EventType.MouseDrag && currentEvent.button == 0)
+        {
+            if (!draggingCanvas && Vector2.Distance(dragStart, currentEvent.mousePosition) >= DragThreshold)
+            {
+                draggingCanvas = true;
+            }
+
+            if (draggingCanvas)
+            {
+                graphScroll -= currentEvent.delta;
+                graphScroll.x = Mathf.Clamp(graphScroll.x, 0f, Mathf.Max(0f, viewRect.width - graphRect.width));
+                graphScroll.y = Mathf.Clamp(graphScroll.y, 0f, Mathf.Max(0f, viewRect.height - graphRect.height));
+                currentEvent.Use();
+            }
         }
     }
 
