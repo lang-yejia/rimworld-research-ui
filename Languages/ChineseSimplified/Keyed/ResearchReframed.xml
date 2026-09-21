@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <RR_Search>搜索科技……</RR_Search>
+  <RR_NoSearchResults>没有找到对应的科技或解锁内容。</RR_NoSearchResults>
+  <RR_SearchUnlockMatch>解锁：{0}</RR_SearchUnlockMatch>
   <RR_Categories>科技分类</RR_Categories>
   <RR_NavigationHint>按住左键拖动画布 · Ctrl＋滚轮缩放 · 按住 Shift 暂时查看原版界面</RR_NavigationHint>
   <RR_Fit>全览</RR_Fit>

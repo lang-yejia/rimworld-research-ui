@@ -44,6 +44,11 @@ internal static class ResearchWindowRenderer
     private static float detailsScrollTarget;
     private static float detailsBounce;
     private static float detailsBounceVelocity;
+    private static float pendingDetailsWheel;
+    private static Rect lastSearchRect;
+    private static float searchDropdownTop;
+    private static bool searchFieldFocused;
+    private static bool searchDropdownOpen;
     private static readonly Dictionary<ResearchTabDef, TabViewState> TabStates = new();
 
     public static void Draw(Rect rect)
@@ -57,7 +62,23 @@ internal static class ResearchWindowRenderer
             ? Rect.zero
             : new Rect(graphRect.xMax - DetailsWidth - 10f, graphRect.y + 10f,
                 DetailsWidth, graphRect.height - 20f);
-        DrawGraph(graphRect, detailsRect);
+        var searchResults = BuildSearchResults();
+        var searchResultsRect = SearchResultsRect(searchResults.Count);
+        if (searchResultsRect.width > 0f && Event.current.type == EventType.MouseDown &&
+            Event.current.button == 0 && !searchResultsRect.Contains(Event.current.mousePosition) &&
+            !lastSearchRect.Contains(Event.current.mousePosition))
+        {
+            searchDropdownOpen = false;
+            searchResults.Clear();
+            searchResultsRect = Rect.zero;
+        }
+        CaptureDetailsWheel(detailsRect);
+        if (searchResultsRect.width > 0f && searchResultsRect.Contains(Event.current.mousePosition) &&
+            Event.current.type == EventType.ScrollWheel)
+        {
+            Event.current.Use();
+        }
+        DrawGraph(graphRect, detailsRect, searchResultsRect);
 
         if (selectedProject != null)
         {
@@ -69,6 +90,8 @@ internal static class ResearchWindowRenderer
             Widgets.DrawShadowAround(detailsRect);
             DrawDetails(detailsRect);
         }
+
+        DrawSearchResults(searchResults, searchResultsRect);
     }
 
     private static void DrawHeader(Rect rect)
@@ -97,8 +120,22 @@ internal static class ResearchWindowRenderer
         var actionsX = inner.xMax - actionsWidth;
         var searchWidth = Mathf.Clamp(actionsX - inner.x - 10f, 180f, 420f);
         var searchRect = new Rect(inner.x, controlsY, searchWidth, 30f);
+        lastSearchRect = searchRect;
+        searchDropdownTop = rect.yMax + 4f;
         var textRect = new Rect(searchRect.x, searchRect.y, searchRect.width - 31f, searchRect.height);
+        var previousSearch = search;
+        GUI.SetNextControlName("ResearchReframedSearch");
         search = Widgets.TextField(textRect, search);
+        searchFieldFocused = GUI.GetNameOfFocusedControl() == "ResearchReframedSearch";
+        if (search != previousSearch)
+        {
+            search = search.Replace("\u200B", string.Empty).Replace("\uFEFF", string.Empty);
+            searchDropdownOpen = !ResearchGraphModel.NormalizeQuery(search).NullOrEmpty();
+        }
+        else if (searchFieldFocused && !ResearchGraphModel.NormalizeQuery(search).NullOrEmpty())
+        {
+            searchDropdownOpen = true;
+        }
         if (search.NullOrEmpty())
         {
             GUI.color = new Color(1f, 1f, 1f, 0.45f);
@@ -108,6 +145,8 @@ internal static class ResearchWindowRenderer
         if (!search.NullOrEmpty() && Widgets.ButtonText(new Rect(textRect.xMax + 2f, controlsY, 29f, 30f), "×"))
         {
             search = string.Empty;
+            searchDropdownOpen = false;
+            GUI.FocusControl(null);
         }
 
         var x = actionsX;
@@ -178,7 +217,127 @@ internal static class ResearchWindowRenderer
         Widgets.EndScrollView();
     }
 
-    private static void DrawGraph(Rect outerRect, Rect detailsRect)
+    private static List<SearchResult> BuildSearchResults()
+    {
+        var query = ResearchGraphModel.NormalizeQuery(search);
+        if (!searchDropdownOpen || query.NullOrEmpty())
+        {
+            return new List<SearchResult>();
+        }
+
+        var results = new List<SearchResult>();
+        foreach (var project in DefDatabase<ResearchProjectDef>.AllDefsListForReading.Where(project => project.tab != null))
+        {
+            var score = MatchScore(project.LabelCap.ToString(), query, 0);
+            score = Mathf.Min(score, MatchScore(project.defName, query, 4));
+            string? matchedUnlock = null;
+            foreach (var unlock in ResearchGraphModel.UnlocksFor(project))
+            {
+                var unlockScore = MatchScore(unlock.Label, query, 30);
+                unlockScore = Mathf.Min(unlockScore,
+                    MatchScore(unlock.DisplayDefinition.LabelCap.ToString(), query, 30));
+                if (unlockScore < score)
+                {
+                    score = unlockScore;
+                    matchedUnlock = unlock.Label;
+                }
+            }
+
+            if (score < 1000)
+            {
+                results.Add(new SearchResult(project, matchedUnlock, score));
+            }
+        }
+
+        return results.OrderBy(result => result.Score)
+            .ThenBy(result => result.Project.LabelCap.ToString())
+            .Take(8)
+            .ToList();
+    }
+
+    private static int MatchScore(string candidate, string query, int baseScore)
+    {
+        var normalizedCandidate = ResearchGraphModel.NormalizeQuery(candidate);
+        if (normalizedCandidate.Equals(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return baseScore;
+        }
+        if (normalizedCandidate.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return baseScore + 8;
+        }
+        return normalizedCandidate.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
+            ? baseScore + 16
+            : 1000;
+    }
+
+    private static Rect SearchResultsRect(int resultCount)
+    {
+        var query = ResearchGraphModel.NormalizeQuery(search);
+        if (!searchDropdownOpen || query.NullOrEmpty() || lastSearchRect.width <= 0f)
+        {
+            return Rect.zero;
+        }
+
+        var rows = Mathf.Max(1, resultCount);
+        return new Rect(lastSearchRect.x, searchDropdownTop,
+            Mathf.Max(380f, lastSearchRect.width), rows * 44f + 10f);
+    }
+
+    private static void DrawSearchResults(IReadOnlyList<SearchResult> results, Rect rect)
+    {
+        if (rect.width <= 0f)
+        {
+            return;
+        }
+
+        Widgets.DrawShadowAround(rect);
+        Widgets.DrawMenuSection(rect);
+        if (results.Count == 0)
+        {
+            Text.Anchor = TextAnchor.MiddleCenter;
+            GUI.color = new Color(1f, 1f, 1f, 0.68f);
+            Widgets.Label(rect.ContractedBy(8f), "RR_NoSearchResults".Translate());
+            GUI.color = Color.white;
+            Text.Anchor = TextAnchor.UpperLeft;
+            return;
+        }
+
+        var y = rect.y + 5f;
+        foreach (var result in results)
+        {
+            var row = new Rect(rect.x + 5f, y, rect.width - 10f, 42f);
+            Widgets.DrawHighlightIfMouseover(row);
+            if (Widgets.ButtonInvisible(row))
+            {
+                SwitchTab(result.Project.tab);
+                selectedProject = result.Project;
+                pendingFocus = result.Project;
+                pendingEnsureVisible = result.Project;
+                ResetDetailsScroll();
+                GUI.FocusControl(null);
+                searchFieldFocused = false;
+                searchDropdownOpen = false;
+            }
+
+            Text.Font = GameFont.Small;
+            Widgets.Label(new Rect(row.x + 8f, row.y + 2f, row.width - 16f, 23f), result.Project.LabelCap);
+            Text.Font = GameFont.Tiny;
+            GUI.color = new Color(1f, 1f, 1f, 0.58f);
+            var subtitle = result.Project.tab.LabelCap.ToString();
+            if (!result.MatchedUnlock.NullOrEmpty())
+            {
+                var unlockMatch = "RR_SearchUnlockMatch".Translate(result.MatchedUnlock);
+                subtitle += $" · {unlockMatch}";
+            }
+            Widgets.Label(new Rect(row.x + 8f, row.y + 23f, row.width - 16f, 17f), subtitle);
+            GUI.color = Color.white;
+            y += 44f;
+        }
+        Text.Font = GameFont.Small;
+    }
+
+    private static void DrawGraph(Rect outerRect, Rect detailsRect, Rect searchResultsRect)
     {
         lastGraphRect = outerRect;
         Widgets.DrawMenuSection(outerRect);
@@ -199,7 +358,8 @@ internal static class ResearchWindowRenderer
         var viewSize = GraphSize(layout, outerRect, rightSafePadding);
         var viewRect = new Rect(0f, 0f, viewSize.x, viewSize.y);
         var scrollRect = outerRect.ContractedBy(4f);
-        var graphInputBlocked = detailsRect.width > 0f && detailsRect.Contains(Event.current.mousePosition);
+        var graphInputBlocked = detailsRect.width > 0f && detailsRect.Contains(Event.current.mousePosition) ||
+                                searchResultsRect.width > 0f && searchResultsRect.Contains(Event.current.mousePosition);
 
         HandleGraphInput(scrollRect, viewRect, graphInputBlocked);
         Widgets.BeginScrollView(scrollRect, ref graphScroll, viewRect);
@@ -322,7 +482,8 @@ internal static class ResearchWindowRenderer
         ISet<ResearchProjectDef> dependents)
     {
         var isCurrent = Find.ResearchManager.IsCurrentProject(project);
-        var matches = ResearchGraphModel.Matches(project, search);
+        var normalizedSearch = ResearchGraphModel.NormalizeQuery(search);
+        var matches = ResearchGraphModel.Matches(project, normalizedSearch);
         var color = project.IsFinished ? Completed : isCurrent ? Current : project.CanStartNow ? Available : Locked;
         var relatedToSelection = selectedProject == null || selectedProject == project ||
                                  prerequisites.Contains(project) || dependents.Contains(project);
@@ -331,7 +492,7 @@ internal static class ResearchWindowRenderer
             color *= 0.68f;
             color.a = 1f;
         }
-        if (!search.NullOrEmpty() && !matches)
+        if (!normalizedSearch.NullOrEmpty() && !matches)
         {
             color *= 0.43f;
             color.a = 1f;
@@ -343,7 +504,7 @@ internal static class ResearchWindowRenderer
             Widgets.DrawBoxSolid(rect.ExpandedBy(4f), SelectedBorder);
         }
         Widgets.DrawBoxSolid(rect, color);
-        var borderThickness = selectedProject == project || matches && !search.NullOrEmpty() ? 3 : 1;
+        var borderThickness = selectedProject == project || matches && !normalizedSearch.NullOrEmpty() ? 3 : 1;
         if (selectedProject == project)
         {
             Widgets.DrawBox(rect, borderThickness, TexUI.HighlightTex);
@@ -641,9 +802,18 @@ internal static class ResearchWindowRenderer
     {
         var maximum = Mathf.Max(0f, viewHeight - scrollRect.height);
         var currentEvent = Event.current;
-        if (scrollRect.Contains(currentEvent.mousePosition) && currentEvent.type == EventType.ScrollWheel)
+        var wheelDelta = pendingDetailsWheel;
+        pendingDetailsWheel = 0f;
+        if (Mathf.Abs(wheelDelta) < 0.01f && scrollRect.Contains(currentEvent.mousePosition) &&
+            currentEvent.type == EventType.ScrollWheel)
         {
-            var movement = currentEvent.delta.y * 42f;
+            wheelDelta = currentEvent.delta.y;
+            currentEvent.Use();
+        }
+
+        if (Mathf.Abs(wheelDelta) >= 0.01f)
+        {
+            var movement = wheelDelta * 42f;
             var proposed = detailsScrollTarget + movement;
             if (proposed < 0f)
             {
@@ -655,7 +825,6 @@ internal static class ResearchWindowRenderer
             }
 
             detailsScrollTarget = Mathf.Clamp(proposed, 0f, maximum);
-            currentEvent.Use();
         }
 
         detailsScrollTarget = Mathf.Clamp(detailsScrollTarget, 0f, maximum);
@@ -678,6 +847,19 @@ internal static class ResearchWindowRenderer
         var y = detailsBounce > 0f ? scrollRect.y : scrollRect.yMax - 5f;
         Widgets.DrawBoxSolid(new Rect(scrollRect.x + 3f, y, scrollRect.width - 6f, 5f),
             new Color(Progress.r, Progress.g, Progress.b, alpha));
+    }
+
+    private static void CaptureDetailsWheel(Rect detailsRect)
+    {
+        var currentEvent = Event.current;
+        if (detailsRect.width <= 0f || !detailsRect.Contains(currentEvent.mousePosition) ||
+            currentEvent.type != EventType.ScrollWheel)
+        {
+            return;
+        }
+
+        pendingDetailsWheel += currentEvent.delta.y;
+        currentEvent.Use();
     }
 
     private static void HandleGraphInput(Rect graphRect, Rect viewRect, bool inputBlocked)
@@ -841,6 +1023,8 @@ internal static class ResearchWindowRenderer
         pendingEnsureVisible = null;
         dragCandidate = false;
         draggingCanvas = false;
+        searchFieldFocused = false;
+        searchDropdownOpen = false;
 
         if (tab != null && TabStates.TryGetValue(tab, out var state))
         {
@@ -888,6 +1072,20 @@ internal static class ResearchWindowRenderer
         detailsScrollTarget = 0f;
         detailsBounce = 0f;
         detailsBounceVelocity = 0f;
+    }
+
+    private sealed class SearchResult
+    {
+        internal SearchResult(ResearchProjectDef project, string? matchedUnlock, int score)
+        {
+            Project = project;
+            MatchedUnlock = matchedUnlock;
+            Score = score;
+        }
+
+        internal ResearchProjectDef Project { get; }
+        internal string? MatchedUnlock { get; }
+        internal int Score { get; }
     }
 
     private sealed class TabViewState

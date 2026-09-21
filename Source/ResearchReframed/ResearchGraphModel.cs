@@ -39,20 +39,33 @@ internal static class ResearchGraphModel
 
     internal static bool Matches(ResearchProjectDef project, string query)
     {
+        query = NormalizeQuery(query);
         if (query.NullOrEmpty())
         {
             return true;
         }
 
-        if (project.LabelCap.ToString().IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 ||
-            project.defName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+        if (NormalizeQuery(project.LabelCap.ToString()).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 ||
+            NormalizeQuery(project.defName).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
         {
             return true;
         }
 
         return UnlocksFor(project).Any(unlock =>
-            unlock.Label.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 ||
-            unlock.Definition.defName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0);
+            NormalizeQuery(unlock.Label).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 ||
+            NormalizeQuery(unlock.Definition.defName).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0);
+    }
+
+    internal static string NormalizeQuery(string? query)
+    {
+        if (query.NullOrEmpty())
+        {
+            return string.Empty;
+        }
+
+        return new string(query!.Where(character =>
+                !char.IsWhiteSpace(character) && character != '\u200B' && character != '\uFEFF')
+            .ToArray());
     }
 
     internal static IReadOnlyList<ResearchUnlock> UnlocksFor(ResearchProjectDef project)
