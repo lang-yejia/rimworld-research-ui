@@ -32,3 +32,12 @@ internal static class ResearchWindowPatch
         }
     }
 }
+
+[HarmonyPatch(typeof(MainTabWindow_Research), nameof(MainTabWindow_Research.InitialSize), MethodType.Getter)]
+internal static class ResearchWindowSizePatch
+{
+    private static void Postfix(ref Vector2 __result)
+    {
+        __result = new Vector2(UI.screenWidth, Mathf.Max(700f, UI.screenHeight - 35f));
+    }
+}
