@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <RR_Search>Search research...</RR_Search>
+  <RR_Categories>Research tabs</RR_Categories>
   <RR_NavigationHint>Left-drag to pan · Ctrl+wheel to zoom · Hold Shift for the vanilla interface</RR_NavigationHint>
   <RR_Fit>Fit</RR_Fit>
   <RR_Current>Current</RR_Current>

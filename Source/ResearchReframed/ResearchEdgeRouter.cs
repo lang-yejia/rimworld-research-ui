@@ -12,16 +12,19 @@ internal sealed class ResearchEdgeRoute
     internal ResearchEdgeRoute(
         ResearchProjectDef from,
         ResearchProjectDef to,
-        IReadOnlyList<Vector2> points)
+        IReadOnlyList<Vector2> points,
+        bool isBundled)
     {
         From = from;
         To = to;
         Points = points;
+        IsBundled = isBundled;
     }
 
     internal ResearchProjectDef From { get; }
     internal ResearchProjectDef To { get; }
     internal IReadOnlyList<Vector2> Points { get; }
+    internal bool IsBundled { get; }
 }
 
 internal static class ResearchEdgeRouter
@@ -110,7 +113,10 @@ internal static class ResearchEdgeRouter
             var toRect = layout[edge.to];
             var fromColumn = columnOf[edge.from];
             var toColumn = columnOf[edge.to];
-            var startY = PortY(fromRect, outgoing[edge.from].IndexOf(edge.to), outgoing[edge.from].Count);
+            var isBundled = outgoing[edge.from].Count >= 3;
+            var startY = isBundled
+                ? fromRect.center.y
+                : PortY(fromRect, outgoing[edge.from].IndexOf(edge.to), outgoing[edge.from].Count);
             var endY = PortY(toRect, incoming[edge.to].IndexOf(edge.from), incoming[edge.to].Count);
             var points = new List<Vector2>();
             AddPoint(points, new Vector2(fromRect.xMax, startY));
@@ -121,7 +127,9 @@ internal static class ResearchEdgeRouter
                 var ordinal = gapUsed[gap]++;
                 var trackCount = Mathf.Min(gapTotals[gap], 9);
                 var track = ordinal % trackCount;
-                var laneOffset = (track - (trackCount - 1) * 0.5f) * LaneSpacing;
+                var laneOffset = isBundled && gap == fromColumn
+                    ? 0f
+                    : (track - (trackCount - 1) * 0.5f) * LaneSpacing;
                 var corridorX = (columnXs[gap] + ResearchGraphLayout.NodeWidth + columnXs[gap + 1]) * 0.5f + laneOffset;
                 AddPoint(points, new Vector2(corridorX, currentY));
 
@@ -138,7 +146,7 @@ internal static class ResearchEdgeRouter
                 AddPoint(points, new Vector2(corridorX, currentY));
             }
 
-            routes.Add(new ResearchEdgeRoute(edge.from, edge.to, points));
+            routes.Add(new ResearchEdgeRoute(edge.from, edge.to, points, isBundled));
         }
         return routes;
     }

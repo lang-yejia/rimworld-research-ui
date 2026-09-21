@@ -9,14 +9,16 @@ namespace ResearchReframed;
 
 internal sealed class ResearchUnlock
 {
-    internal ResearchUnlock(Def definition, string label, Texture2D? icon)
+    internal ResearchUnlock(Def definition, Def displayDefinition, string label, Texture2D? icon)
     {
         Definition = definition;
+        DisplayDefinition = displayDefinition;
         Label = label;
         Icon = icon;
     }
 
     internal Def Definition { get; }
+    internal Def DisplayDefinition { get; }
     internal string Label { get; }
     internal Texture2D? Icon { get; }
 }
@@ -63,8 +65,11 @@ internal static class ResearchGraphModel
         var result = new List<ResearchUnlock>();
         foreach (var definition in project.UnlockedDefs ?? Enumerable.Empty<Def>())
         {
+            var displayDefinition = definition is RecipeDef recipe && recipe.ProducedThingDef != null
+                ? recipe.ProducedThingDef
+                : definition;
             var icon = IconFor(definition);
-            result.Add(new ResearchUnlock(definition, definition.LabelCap.ToString(), icon));
+            result.Add(new ResearchUnlock(definition, displayDefinition, definition.LabelCap.ToString(), icon));
         }
 
         result.Sort((left, right) => string.Compare(left.Label, right.Label, StringComparison.CurrentCultureIgnoreCase));

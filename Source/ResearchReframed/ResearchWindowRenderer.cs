@@ -9,7 +9,7 @@ namespace ResearchReframed;
 
 internal static class ResearchWindowRenderer
 {
-    private const float HeaderHeight = 76f;
+    private const float HeaderHeight = 112f;
     private const float DetailsWidth = 350f;
     private const float MinZoom = 0.58f;
     private const float MaxZoom = 1.25f;
@@ -25,6 +25,7 @@ internal static class ResearchWindowRenderer
     private static readonly Color DependentConnection = new(0.42f, 0.67f, 0.78f, 0.95f);
     private static readonly Color SelectedBorder = new(0.95f, 0.73f, 0.22f);
     private static readonly Color Progress = new(0.86f, 0.69f, 0.29f);
+    private static readonly Color SelectedTab = new(0.25f, 0.23f, 0.17f);
 
     private static Vector2 graphScroll;
     private static Vector2 tabScroll;
@@ -40,6 +41,10 @@ internal static class ResearchWindowRenderer
     private static bool dragCandidate;
     private static bool draggingCanvas;
     private static Vector2 dragStart;
+    private static float detailsScrollTarget;
+    private static float detailsBounce;
+    private static float detailsBounceVelocity;
+    private static readonly Dictionary<ResearchTabDef, TabViewState> TabStates = new();
 
     public static void Draw(Rect rect)
     {
@@ -68,55 +73,72 @@ internal static class ResearchWindowRenderer
 
     private static void DrawHeader(Rect rect)
     {
+        Widgets.DrawMenuSection(rect);
+        var inner = rect.ContractedBy(8f);
         var tabs = DefDatabase<ResearchTabDef>.AllDefsListForReading.OrderBy(tab => tab.label).ToList();
         if (selectedTab == null || !tabs.Contains(selectedTab))
         {
-            selectedTab = tabs.FirstOrDefault();
+            SwitchTab(tabs.FirstOrDefault());
         }
 
-        const float controlsWidth = 550f;
-        var tabArea = new Rect(rect.x, rect.y, Mathf.Max(180f, rect.width - controlsWidth - 10f), 34f);
+        Text.Font = GameFont.Small;
+        Text.Anchor = TextAnchor.MiddleLeft;
+        GUI.color = new Color(1f, 1f, 1f, 0.72f);
+        Widgets.Label(new Rect(inner.x, inner.y, 82f, 30f), "RR_Categories".Translate());
+        GUI.color = Color.white;
+        Text.Anchor = TextAnchor.UpperLeft;
+
+        var tabArea = new Rect(inner.x + 86f, inner.y, inner.width - 86f, 34f);
         DrawTabs(tabArea, tabs);
 
-        var controlsX = tabArea.xMax + 10f;
-        var searchRect = new Rect(controlsX, rect.y, 235f, 30f);
-        search = Widgets.TextField(searchRect, search);
+        Widgets.DrawLineHorizontal(inner.x, inner.y + 39f, inner.width);
+        var controlsY = inner.y + 47f;
+        const float actionsWidth = 323f;
+        var actionsX = inner.xMax - actionsWidth;
+        var searchWidth = Mathf.Clamp(actionsX - inner.x - 10f, 180f, 420f);
+        var searchRect = new Rect(inner.x, controlsY, searchWidth, 30f);
+        var textRect = new Rect(searchRect.x, searchRect.y, searchRect.width - 31f, searchRect.height);
+        search = Widgets.TextField(textRect, search);
         if (search.NullOrEmpty())
         {
             GUI.color = new Color(1f, 1f, 1f, 0.45f);
-            Widgets.Label(searchRect.ContractedBy(6f, 3f), "RR_Search".Translate());
+            Widgets.Label(textRect.ContractedBy(6f, 3f), "RR_Search".Translate());
             GUI.color = Color.white;
         }
+        if (!search.NullOrEmpty() && Widgets.ButtonText(new Rect(textRect.xMax + 2f, controlsY, 29f, 30f), "×"))
+        {
+            search = string.Empty;
+        }
 
-        var x = searchRect.xMax + 6f;
-        if (Widgets.ButtonText(new Rect(x, rect.y, 32f, 30f), "−"))
+        var x = actionsX;
+        if (Widgets.ButtonText(new Rect(x, controlsY, 32f, 30f), "−"))
         {
             SetZoom(zoom - 0.1f);
         }
         x += 36f;
-        if (Widgets.ButtonText(new Rect(x, rect.y, 58f, 30f), $"{zoom:P0}"))
+        if (Widgets.ButtonText(new Rect(x, controlsY, 58f, 30f), $"{zoom:P0}"))
         {
             SetZoom(1f);
         }
         x += 62f;
-        if (Widgets.ButtonText(new Rect(x, rect.y, 32f, 30f), "+"))
+        if (Widgets.ButtonText(new Rect(x, controlsY, 32f, 30f), "+"))
         {
             SetZoom(zoom + 0.1f);
         }
         x += 38f;
-        if (Widgets.ButtonText(new Rect(x, rect.y, 78f, 30f), "RR_Fit".Translate()))
+        if (Widgets.ButtonText(new Rect(x, controlsY, 78f, 30f), "RR_Fit".Translate()))
         {
             FitGraph();
         }
         x += 84f;
-        if (Widgets.ButtonText(new Rect(x, rect.y, 105f, 30f), "RR_Current".Translate()))
+        if (Widgets.ButtonText(new Rect(x, controlsY, 101f, 30f), "RR_Current".Translate()))
         {
             FocusCurrentProject();
         }
 
         Text.Font = GameFont.Tiny;
         GUI.color = new Color(1f, 1f, 1f, 0.58f);
-        Widgets.Label(new Rect(rect.x, rect.y + 42f, rect.width, 22f), "RR_NavigationHint".Translate());
+        Widgets.Label(new Rect(inner.x, inner.y + 81f, inner.width, 18f), "RR_NavigationHint".Translate());
         GUI.color = Color.white;
         Text.Font = GameFont.Small;
     }
@@ -131,12 +153,25 @@ internal static class ResearchWindowRenderer
         {
             var tab = tabs[index];
             var tabRect = new Rect(x, 0f, widths[index], 30f);
-            if (Widgets.ButtonText(tabRect, tab.LabelCap, drawBackground: selectedTab != tab))
+            bool clicked;
+            if (selectedTab == tab)
             {
-                selectedTab = tab;
-                selectedProject = null;
-                graphScroll = Vector2.zero;
-                zoom = 1f;
+                Widgets.DrawBoxSolid(tabRect, SelectedTab);
+                Widgets.DrawBox(tabRect, 1);
+                Widgets.DrawBoxSolid(new Rect(tabRect.x + 6f, tabRect.yMax - 3f, tabRect.width - 12f, 3f), SelectedBorder);
+                Text.Anchor = TextAnchor.MiddleCenter;
+                Widgets.Label(tabRect, tab.LabelCap);
+                Text.Anchor = TextAnchor.UpperLeft;
+                clicked = Widgets.ButtonInvisible(tabRect);
+            }
+            else
+            {
+                clicked = Widgets.ButtonText(tabRect, tab.LabelCap);
+            }
+
+            if (clicked && selectedTab != tab)
+            {
+                SwitchTab(tab);
             }
             x += widths[index] + 5f;
         }
@@ -222,6 +257,13 @@ internal static class ResearchWindowRenderer
             var thickness = prerequisitePath || dependentPath ? 3.5f : 2f;
             var points = route.Points.Select(point => point * scale).ToList();
             DrawOrthogonalPath(points, color, thickness);
+            if (route.IsBundled && points.Count > 2)
+            {
+                var junction = points[2];
+                var junctionSize = Mathf.Max(5f, thickness + 2f);
+                Widgets.DrawBoxSolid(new Rect(junction.x - junctionSize * 0.5f,
+                    junction.y - junctionSize * 0.5f, junctionSize, junctionSize), color);
+            }
             DrawArrow(points, color, thickness);
         }
     }
@@ -315,7 +357,7 @@ internal static class ResearchWindowRenderer
         {
             selectedProject = project;
             pendingEnsureVisible = project;
-            detailsScroll = Vector2.zero;
+            ResetDetailsScroll();
         }
 
         if (selectedProject == project)
@@ -363,7 +405,8 @@ internal static class ResearchWindowRenderer
     private static void DrawUnlockIcons(ResearchProjectDef project, Rect area)
     {
         var unlocks = ResearchGraphModel.UnlocksFor(project);
-        var withIcons = unlocks.Where(unlock => unlock.Icon != null).Take(4).ToList();
+        var withIcons = unlocks.Where(unlock =>
+            Widgets.CanDrawIconFor(unlock.DisplayDefinition) || unlock.Icon != null).Take(4).ToList();
         if (withIcons.Count == 0)
         {
             return;
@@ -377,7 +420,7 @@ internal static class ResearchWindowRenderer
         {
             var iconRect = new Rect(x, area.y, iconSize, iconSize);
             GUI.color = Color.white;
-            Widgets.DrawTextureFitted(iconRect, unlock.Icon!, 1f);
+            DrawDefinitionIcon(iconRect, unlock.DisplayDefinition, unlock.Icon);
             TooltipHandler.TipRegion(iconRect, unlock.Label);
             x += iconSize + spacing;
         }
@@ -434,9 +477,11 @@ internal static class ResearchWindowRenderer
         var viewHeight = 265f + descriptionHeight + requirementHeight +
                          prerequisites.Count * 25f + unlocks.Count * 29f;
         var scrollOuter = new Rect(inner.x, inner.y + 42f, inner.width, inner.height - 94f);
+        UpdateDetailsScroll(scrollOuter, viewHeight);
+        var scrollBeforeControls = detailsScroll.y;
         Widgets.BeginScrollView(scrollOuter, ref detailsScroll, new Rect(0f, 0f, contentWidth, viewHeight));
 
-        var y = 0f;
+        var y = detailsBounce;
         Widgets.Label(new Rect(0f, y, contentWidth, 28f), "RR_Cost".Translate(project.CostApparent.ToString("0")));
         y += 32f;
         DrawDetailedProgress(project, new Rect(0f, y, contentWidth, 30f));
@@ -490,7 +535,7 @@ internal static class ResearchWindowRenderer
         {
             foreach (var unlock in unlocks)
             {
-                DrawDefRow(unlock.Definition, ref y, contentWidth, unlock.Label, unlock.Icon);
+                DrawDefRow(unlock.DisplayDefinition, ref y, contentWidth, unlock.Label, unlock.Icon);
             }
         }
 
@@ -509,13 +554,22 @@ internal static class ResearchWindowRenderer
             {
                 if (Widgets.ButtonText(new Rect(0f, y, contentWidth, 24f), prerequisite.LabelCap))
                 {
-                    selectedTab = prerequisite.tab;
+                    SwitchTab(prerequisite.tab);
+                    selectedProject = prerequisite;
                     pendingFocus = prerequisite;
+                    ResetDetailsScroll();
                 }
                 y += 25f;
             }
         }
         Widgets.EndScrollView();
+        if (Mathf.Abs(detailsScroll.y - scrollBeforeControls) > 0.1f)
+        {
+            detailsScrollTarget = detailsScroll.y;
+            detailsBounce = 0f;
+            detailsBounceVelocity = 0f;
+        }
+        DrawDetailsEdgeFeedback(scrollOuter);
 
         var buttonRect = new Rect(inner.x, rect.yMax - 44f, inner.width, 32f);
         var isCurrent = Find.ResearchManager.IsCurrentProject(project);
@@ -543,15 +597,26 @@ internal static class ResearchWindowRenderer
             Find.WindowStack.Add(new Dialog_InfoCard(definition, null));
         }
 
-        var resolvedIcon = icon ?? (definition as ThingDef)?.uiIcon ?? (definition as BuildableDef)?.uiIcon;
-        if (resolvedIcon != null)
-        {
-            Widgets.DrawTextureFitted(new Rect(row.x + 1f, row.y + 1f, 24f, 24f), resolvedIcon, 1f);
-        }
+        DrawDefinitionIcon(new Rect(row.x + 1f, row.y + 1f, 24f, 24f), definition, icon);
         Widgets.Label(new Rect(row.x + 31f, row.y + 2f, row.width - 64f, 24f),
             label ?? definition.LabelCap.ToString());
         Widgets.InfoCardButton(infoRect, definition);
         y += 29f;
+    }
+
+    private static void DrawDefinitionIcon(Rect rect, Def definition, Texture2D? fallback)
+    {
+        if (Widgets.CanDrawIconFor(definition))
+        {
+            Widgets.DefIcon(rect, definition);
+            return;
+        }
+
+        var resolved = fallback ?? (definition as BuildableDef)?.uiIcon;
+        if (resolved != null)
+        {
+            Widgets.DrawTextureFitted(rect, resolved, 1f);
+        }
     }
 
     private static void DrawDetailedProgress(ResearchProjectDef project, Rect rect)
@@ -570,6 +635,49 @@ internal static class ResearchWindowRenderer
         Text.Anchor = TextAnchor.MiddleCenter;
         Widgets.Label(rect, project.IsFinished ? $"{completedText} · {pointText}" : pointText);
         Text.Anchor = TextAnchor.UpperLeft;
+    }
+
+    private static void UpdateDetailsScroll(Rect scrollRect, float viewHeight)
+    {
+        var maximum = Mathf.Max(0f, viewHeight - scrollRect.height);
+        var currentEvent = Event.current;
+        if (scrollRect.Contains(currentEvent.mousePosition) && currentEvent.type == EventType.ScrollWheel)
+        {
+            var movement = currentEvent.delta.y * 42f;
+            var proposed = detailsScrollTarget + movement;
+            if (proposed < 0f)
+            {
+                detailsBounce = Mathf.Clamp(detailsBounce + Mathf.Min(12f, -proposed * 0.18f), 0f, 12f);
+            }
+            else if (proposed > maximum)
+            {
+                detailsBounce = Mathf.Clamp(detailsBounce - Mathf.Min(12f, (proposed - maximum) * 0.18f), -12f, 0f);
+            }
+
+            detailsScrollTarget = Mathf.Clamp(proposed, 0f, maximum);
+            currentEvent.Use();
+        }
+
+        detailsScrollTarget = Mathf.Clamp(detailsScrollTarget, 0f, maximum);
+        var deltaTime = Mathf.Min(Time.unscaledDeltaTime, 0.05f);
+        var smoothing = 1f - Mathf.Exp(-18f * deltaTime);
+        detailsScroll.y = Mathf.Lerp(detailsScroll.y, detailsScrollTarget, smoothing);
+        detailsScroll.x = 0f;
+        detailsBounce = Mathf.SmoothDamp(detailsBounce, 0f, ref detailsBounceVelocity,
+            0.14f, 120f, deltaTime);
+    }
+
+    private static void DrawDetailsEdgeFeedback(Rect scrollRect)
+    {
+        if (Mathf.Abs(detailsBounce) < 0.25f)
+        {
+            return;
+        }
+
+        var alpha = Mathf.Clamp01(Mathf.Abs(detailsBounce) / 12f) * 0.55f;
+        var y = detailsBounce > 0f ? scrollRect.y : scrollRect.yMax - 5f;
+        Widgets.DrawBoxSolid(new Rect(scrollRect.x + 3f, y, scrollRect.width - 6f, 5f),
+            new Color(Progress.r, Progress.g, Progress.b, alpha));
     }
 
     private static void HandleGraphInput(Rect graphRect, Rect viewRect, bool inputBlocked)
@@ -664,9 +772,10 @@ internal static class ResearchWindowRenderer
             return;
         }
 
-        selectedTab = current.tab;
+        SwitchTab(current.tab);
         selectedProject = current;
         pendingFocus = current;
+        ResetDetailsScroll();
     }
 
     private static void FocusPendingProject(
@@ -717,5 +826,90 @@ internal static class ResearchWindowRenderer
         graphScroll.x = Mathf.Clamp(graphScroll.x, 0f, Mathf.Max(0f, viewRect.width - viewport.width));
         graphScroll.y = Mathf.Clamp(graphScroll.y, 0f, Mathf.Max(0f, viewRect.height - viewport.height));
         pendingEnsureVisible = null;
+    }
+
+    private static void SwitchTab(ResearchTabDef? tab)
+    {
+        if (selectedTab == tab)
+        {
+            return;
+        }
+
+        SaveCurrentTabState();
+        selectedTab = tab;
+        pendingFocus = null;
+        pendingEnsureVisible = null;
+        dragCandidate = false;
+        draggingCanvas = false;
+
+        if (tab != null && TabStates.TryGetValue(tab, out var state))
+        {
+            graphScroll = state.GraphScroll;
+            detailsScroll = state.DetailsScroll;
+            detailsScrollTarget = detailsScroll.y;
+            zoom = state.Zoom;
+            search = state.Search;
+            selectedProject = state.SelectedProject != null && state.SelectedProject.tab == tab
+                ? state.SelectedProject
+                : null;
+        }
+        else
+        {
+            graphScroll = Vector2.zero;
+            detailsScroll = Vector2.zero;
+            detailsScrollTarget = 0f;
+            zoom = 1f;
+            search = string.Empty;
+            selectedProject = null;
+        }
+
+        detailsBounce = 0f;
+        detailsBounceVelocity = 0f;
+    }
+
+    private static void SaveCurrentTabState()
+    {
+        if (selectedTab == null)
+        {
+            return;
+        }
+
+        TabStates[selectedTab] = new TabViewState(
+            graphScroll,
+            detailsScroll,
+            zoom,
+            search,
+            selectedProject);
+    }
+
+    private static void ResetDetailsScroll()
+    {
+        detailsScroll = Vector2.zero;
+        detailsScrollTarget = 0f;
+        detailsBounce = 0f;
+        detailsBounceVelocity = 0f;
+    }
+
+    private sealed class TabViewState
+    {
+        internal TabViewState(
+            Vector2 graphScroll,
+            Vector2 detailsScroll,
+            float zoom,
+            string search,
+            ResearchProjectDef? selectedProject)
+        {
+            GraphScroll = graphScroll;
+            DetailsScroll = detailsScroll;
+            Zoom = zoom;
+            Search = search;
+            SelectedProject = selectedProject;
+        }
+
+        internal Vector2 GraphScroll { get; }
+        internal Vector2 DetailsScroll { get; }
+        internal float Zoom { get; }
+        internal string Search { get; }
+        internal ResearchProjectDef? SelectedProject { get; }
     }
 }
