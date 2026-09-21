@@ -82,6 +82,19 @@ internal static class ResearchGraphModel
         return result;
     }
 
+    internal static HashSet<ResearchProjectDef> DependentPath(ResearchProjectDef? project)
+    {
+        var result = new HashSet<ResearchProjectDef>();
+        if (project == null)
+        {
+            return result;
+        }
+
+        var projects = DefDatabase<ResearchProjectDef>.AllDefsListForReading;
+        AddDependents(project, projects, result);
+        return result;
+    }
+
     private static void AddPrerequisites(ResearchProjectDef project, ISet<ResearchProjectDef> result)
     {
         if (project.prerequisites == null)
@@ -94,6 +107,21 @@ internal static class ResearchGraphModel
             if (result.Add(prerequisite))
             {
                 AddPrerequisites(prerequisite, result);
+            }
+        }
+    }
+
+    private static void AddDependents(
+        ResearchProjectDef project,
+        IReadOnlyCollection<ResearchProjectDef> projects,
+        ISet<ResearchProjectDef> result)
+    {
+        foreach (var dependent in projects.Where(candidate =>
+                     candidate.prerequisites != null && candidate.prerequisites.Contains(project)))
+        {
+            if (result.Add(dependent))
+            {
+                AddDependents(dependent, projects, result);
             }
         }
     }

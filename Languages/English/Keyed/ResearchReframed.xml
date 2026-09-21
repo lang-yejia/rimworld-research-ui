@@ -18,6 +18,10 @@
   <RR_Progress>Research progress: {0}</RR_Progress>
   <RR_Unlocks>Unlocks</RR_Unlocks>
   <RR_NoUnlocks>No displayable unlocks</RR_NoUnlocks>
+  <RR_ResearchRequirements>Research requirements</RR_ResearchRequirements>
+  <RR_RequiredBench>Required research bench</RR_RequiredBench>
+  <RR_RequiredFacilities>Required facilities</RR_RequiredFacilities>
+  <RR_MissingResearchBench>Your colony lacks an appropriate research bench or facility.</RR_MissingResearchBench>
   <RR_NoCurrentResearch>No research project is currently selected.</RR_NoCurrentResearch>
   <RR_FallbackWarning>Research Reframed encountered an error and restored the vanilla research window.</RR_FallbackWarning>
 </LanguageData>

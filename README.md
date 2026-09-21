@@ -16,9 +16,9 @@ Research Reframed is a vanilla-styled, data-driven redesign of RimWorld's resear
 - Dynamic research tabs and projects, including standard content added by other mods.
 - Unlock icons on nodes, persistent progress bars, and completed/current/available/locked states.
 - Search by research name, `defName`, or unlocked content without rearranging the graph.
-- Layered, crossing-reduced graph layout with wider branch spacing and routed prerequisite connections.
+- Layered, crossing-reduced graph layout with wider branch spacing, obstacle-aware edge routing, directional arrows, and focus highlighting.
 - Left-drag panning, zoom, fit-to-view, and focus-current-research controls.
-- Input-isolated overlay details panel with unlocks, clickable prerequisites, exact research-point progress, and project selection.
+- Input-isolated overlay details panel with clickable vanilla info cards, research-bench/facility requirements, exact research-point progress, and project selection.
 - English and Simplified Chinese translations.
 
 ## Compatibility strategy

@@ -18,6 +18,10 @@
   <RR_Progress>研究进度：{0}</RR_Progress>
   <RR_Unlocks>解锁内容</RR_Unlocks>
   <RR_NoUnlocks>没有可显示的解锁项目</RR_NoUnlocks>
+  <RR_ResearchRequirements>研究条件</RR_ResearchRequirements>
+  <RR_RequiredBench>需要研究台</RR_RequiredBench>
+  <RR_RequiredFacilities>所需设施</RR_RequiredFacilities>
+  <RR_MissingResearchBench>当前殖民地缺少合适的研究台或研究设施。</RR_MissingResearchBench>
   <RR_NoCurrentResearch>当前没有正在进行的研究。</RR_NoCurrentResearch>
   <RR_FallbackWarning>科技界面焕新发生错误，已恢复原版研究窗口。</RR_FallbackWarning>
 </LanguageData>
