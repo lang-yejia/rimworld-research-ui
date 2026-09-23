@@ -30,11 +30,22 @@ internal static class ResearchGraphModel
     internal static List<ResearchProjectDef> ProjectsFor(ResearchTabDef? tab)
     {
         return DefDatabase<ResearchProjectDef>.AllDefsListForReading
-            .Where(project => project.tab == tab)
+            .Where(project => project.tab == tab && IsVisible(project))
             .OrderBy(project => project.researchViewX)
             .ThenBy(project => project.researchViewY)
             .ThenBy(project => project.defName)
             .ToList();
+    }
+
+    internal static bool IsVisible(ResearchProjectDef project)
+    {
+        if (project.IsHidden)
+        {
+            return false;
+        }
+
+        return Find.Storyteller.difficulty.AllowedBy(project.hideWhen) ||
+               Find.ResearchManager.IsCurrentProject(project);
     }
 
     internal static bool Matches(ResearchProjectDef project, string query)
@@ -53,7 +64,9 @@ internal static class ResearchGraphModel
 
         return UnlocksFor(project).Any(unlock =>
             NormalizeQuery(unlock.Label).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 ||
-            NormalizeQuery(unlock.Definition.defName).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0);
+            NormalizeQuery(unlock.Definition.defName).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0) ||
+               (project.customUnlockTexts?.Any(text =>
+                   NormalizeQuery(text).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0) ?? false);
     }
 
     internal static string NormalizeQuery(string? query)

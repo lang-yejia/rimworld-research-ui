@@ -63,6 +63,13 @@ internal static class ResearchWindowRenderer
 
     public static void Draw(Rect rect)
     {
+        if (selectedProject != null &&
+            (!ResearchGraphModel.IsVisible(selectedProject) ||
+             !Find.ResearchManager.TabInfoVisible(selectedProject.tab)))
+        {
+            selectedProject = null;
+        }
+
         Widgets.DrawBoxSolid(rect, Background);
         var content = rect.ContractedBy(10f);
         DrawHeader(new Rect(content.x, content.y, content.width, HeaderHeight - 6f));
@@ -110,7 +117,10 @@ internal static class ResearchWindowRenderer
         Widgets.DrawBoxSolid(new Rect(rect.x + 1f, rect.yMax - 2f, rect.width - 2f, 2f),
             new Color(SelectedBorder.r, SelectedBorder.g, SelectedBorder.b, 0.55f));
         var inner = rect.ContractedBy(8f);
-        var tabs = DefDatabase<ResearchTabDef>.AllDefsListForReading.OrderBy(tab => tab.label).ToList();
+        var tabs = DefDatabase<ResearchTabDef>.AllDefsListForReading
+            .Where(tab => Find.ResearchManager.TabInfoVisible(tab))
+            .OrderBy(tab => tab.label)
+            .ToList();
         if (selectedTab == null || !tabs.Contains(selectedTab))
         {
             SwitchTab(tabs.FirstOrDefault());
@@ -188,9 +198,8 @@ internal static class ResearchWindowRenderer
         }
 
         Text.Font = GameFont.Tiny;
-        GUI.color = MutedText;
         var hintRect = new Rect(inner.x, inner.y + 81f, inner.width * 0.57f, 18f);
-        Widgets.Label(hintRect, "RR_NavigationHint".Translate());
+        DrawHeaderContext(hintRect);
         DrawStatusLegend(new Rect(hintRect.xMax, hintRect.y, inner.xMax - hintRect.xMax, hintRect.height));
         GUI.color = Color.white;
         Text.Font = GameFont.Small;
@@ -243,7 +252,9 @@ internal static class ResearchWindowRenderer
         }
 
         var results = new List<SearchResult>();
-        foreach (var project in DefDatabase<ResearchProjectDef>.AllDefsListForReading.Where(project => project.tab != null))
+        foreach (var project in DefDatabase<ResearchProjectDef>.AllDefsListForReading.Where(project =>
+                     project.tab != null && ResearchGraphModel.IsVisible(project) &&
+                     Find.ResearchManager.TabInfoVisible(project.tab)))
         {
             var score = MatchScore(project.LabelCap.ToString(), query, 0);
             score = Mathf.Min(score, MatchScore(project.defName, query, 4));
@@ -257,6 +268,19 @@ internal static class ResearchWindowRenderer
                 {
                     score = unlockScore;
                     matchedUnlock = unlock.Label;
+                }
+            }
+
+            if (project.customUnlockTexts != null)
+            {
+                foreach (var customUnlock in project.customUnlockTexts)
+                {
+                    var unlockScore = MatchScore(customUnlock, query, 30);
+                    if (unlockScore < score)
+                    {
+                        score = unlockScore;
+                        matchedUnlock = customUnlock;
+                    }
                 }
             }
 
@@ -386,6 +410,7 @@ internal static class ResearchWindowRenderer
         Widgets.BeginScrollView(scrollRect, ref graphScroll, viewRect);
         FocusPendingProject(layout, scrollRect, viewRect, detailsRect.width);
         EnsureSelectedVisible(layout, scrollRect, viewRect, detailsRect.width);
+        DrawProgressionBackdrop(projects, layout, viewRect);
         DrawConnections(baseRoutes, zoom);
         var visibleCanvas = new Rect(
             graphScroll.x - ResearchGraphLayout.NodeWidth,
@@ -564,13 +589,7 @@ internal static class ResearchWindowRenderer
 
         Text.Font = GameFont.Tiny;
         Text.Anchor = TextAnchor.MiddleCenter;
-        var status = project.IsFinished
-            ? "RR_Completed".Translate()
-            : isCurrent
-                ? $"{project.ProgressPercent:P0}"
-                : project.CanStartNow
-                    ? "RR_Available".Translate()
-                    : "RR_Locked".Translate();
+        var status = isCurrent ? $"{StatusLabel(project, true)} · {project.ProgressPercent:P0}" : StatusLabel(project, false);
         if (zoom >= 0.72f)
         {
             var statusHeight = Mathf.Max(Text.LineHeight + 2f, 22f);
@@ -622,12 +641,62 @@ internal static class ResearchWindowRenderer
     private static string NodeTooltip(ResearchProjectDef project)
     {
         var unlocks = ResearchGraphModel.UnlocksFor(project);
-        var unlockText = unlocks.Count == 0
+        var customUnlocks = project.customUnlockTexts ?? new List<string>();
+        var unlockLines = unlocks.Select(unlock => $"• {unlock.Label}")
+            .Concat(customUnlocks.Select(text => $"• {text}"))
+            .ToList();
+        var unlockText = unlockLines.Count == 0
             ? "RR_NoUnlocks".Translate().ToString()
-            : string.Join("\n", unlocks.Select(unlock => $"• {unlock.Label}"));
+            : string.Join("\n", unlockLines);
         var progressText = "RR_Progress".Translate(project.ProgressPercent.ToString("P0"));
         var unlockHeading = "RR_Unlocks".Translate();
-        return $"{project.LabelCap}\n{progressText}\n\n{unlockHeading}\n{unlockText}";
+        var requirements = BuildSpecialRequirements(project);
+        var requirementText = requirements.Count == 0
+            ? string.Empty
+            : $"\n\n{"RR_ResearchRequirements".Translate()}\n" +
+              string.Join("\n", requirements.Select(requirement =>
+                  $"{(requirement.Met ? "✓" : "•")} {requirement.Label}"));
+        return $"{project.LabelCap}\n{progressText}{requirementText}\n\n{unlockHeading}\n{unlockText}";
+    }
+
+    private static List<SpecialRequirement> BuildSpecialRequirements(ResearchProjectDef project)
+    {
+        var requirements = new List<SpecialRequirement>();
+        if (project.TechprintCount > 0)
+        {
+            requirements.Add(new SpecialRequirement(
+                "RR_TechprintsProgress".Translate(project.TechprintsApplied, project.TechprintCount).ToString(),
+                project.TechprintRequirementMet));
+        }
+
+        if (project.RequiredAnalyzedThingCount > 0)
+        {
+            var analyzedLabels = project.requiredAnalyzed == null
+                ? string.Empty
+                : string.Join(", ", project.requiredAnalyzed.Select(thing => thing.LabelCap));
+            requirements.Add(new SpecialRequirement(
+                "RR_AnalysisProgress".Translate(
+                    project.AnalyzedThingsCompleted,
+                    project.RequiredAnalyzedThingCount,
+                    analyzedLabels).ToString(),
+                project.AnalyzedThingsRequirementsMet));
+        }
+
+        if (project.requiresMechanitor)
+        {
+            requirements.Add(new SpecialRequirement(
+                "RR_MechanitorRequirement".Translate().ToString(),
+                project.PlayerMechanitorRequirementMet));
+        }
+
+        if (project.requireGravEngineInspected)
+        {
+            requirements.Add(new SpecialRequirement(
+                "RR_GravEngineInspection".Translate().ToString(),
+                project.InspectionRequirementsMet));
+        }
+
+        return requirements;
     }
 
     private static void DrawDetails(Rect rect)
@@ -657,31 +726,37 @@ internal static class ResearchWindowRenderer
         var descriptionHeight = Text.CalcHeight(description, contentWidth);
         var prerequisites = project.prerequisites ?? new List<ResearchProjectDef>();
         var unlocks = ResearchGraphModel.UnlocksFor(project);
+        var customUnlocks = project.customUnlockTexts ?? new List<string>();
         var researchFacilities = project.requiredResearchFacilities ?? new List<ThingDef>();
+        var specialRequirements = BuildSpecialRequirements(project);
         var facilityCount = researchFacilities.Count;
         var missingResearchBench = !project.IsFinished && !project.PlayerHasAnyAppropriateResearchBench;
-        var requirementRows = (project.requiredResearchBuilding != null ? 1 : 0) + facilityCount;
+        var requirementRows = (project.requiredResearchBuilding != null ? 1 : 0) + facilityCount + specialRequirements.Count;
         var requirementLabels = (project.requiredResearchBuilding != null ? 1 : 0) + (facilityCount > 0 ? 1 : 0);
-        var requirementHeight = requirementRows == 0
+        var hasRequirements = requirementRows > 0 || missingResearchBench;
+        var requirementHeight = !hasRequirements
             ? 0f
             : 52f + requirementRows * 29f + requirementLabels * 25f +
               (missingResearchBench ? 30f : 0f);
         var viewHeight = 265f + descriptionHeight + requirementHeight +
-                         prerequisites.Count * 25f + unlocks.Count * 29f;
+                         prerequisites.Count * 25f + unlocks.Count * 29f + customUnlocks.Count * 29f;
         var scrollOuter = new Rect(inner.x, inner.y + 52f, inner.width, inner.height - 104f);
         UpdateDetailsScroll(scrollOuter, viewHeight);
         var scrollBeforeControls = detailsScroll.y;
         Widgets.BeginScrollView(scrollOuter, ref detailsScroll, new Rect(0f, 0f, contentWidth, viewHeight));
 
         var y = detailsBounce;
-        Widgets.Label(new Rect(0f, y, contentWidth, 28f), "RR_Cost".Translate(project.CostApparent.ToString("0")));
+        var costLabel = project.knowledgeCategory == null
+            ? "RR_Cost".Translate(project.CostApparent.ToString("0"))
+            : "RR_KnowledgeCost".Translate(project.knowledgeCategory.LabelCap, project.CostApparent.ToString("0"));
+        Widgets.Label(new Rect(0f, y, contentWidth, 28f), costLabel);
         y += 32f;
         DrawDetailedProgress(project, new Rect(0f, y, contentWidth, 30f));
         y += 44f;
         Widgets.Label(new Rect(0f, y, contentWidth, descriptionHeight), description);
         y += descriptionHeight + 18f;
 
-        if (requirementRows > 0)
+        if (hasRequirements)
         {
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(0f, y, contentWidth, 30f), "RR_ResearchRequirements".Translate());
@@ -704,6 +779,11 @@ internal static class ResearchWindowRenderer
                 }
             }
 
+            foreach (var requirement in specialRequirements)
+            {
+                DrawRequirementRow(requirement.Label, requirement.Met, ref y, contentWidth);
+            }
+
             if (missingResearchBench)
             {
                 GUI.color = new Color(1f, 0.66f, 0.28f);
@@ -718,7 +798,7 @@ internal static class ResearchWindowRenderer
         Widgets.Label(new Rect(0f, y, contentWidth, 30f), "RR_Unlocks".Translate());
         y += 32f;
         Text.Font = GameFont.Small;
-        if (unlocks.Count == 0)
+        if (unlocks.Count == 0 && customUnlocks.Count == 0)
         {
             Widgets.Label(new Rect(0f, y, contentWidth, 24f), "RR_NoUnlocks".Translate());
             y += 25f;
@@ -728,6 +808,10 @@ internal static class ResearchWindowRenderer
             foreach (var unlock in unlocks)
             {
                 DrawDefRow(unlock.DisplayDefinition, ref y, contentWidth, unlock.Label, unlock.Icon);
+            }
+            foreach (var customUnlock in customUnlocks)
+            {
+                DrawTextUnlockRow(customUnlock, ref y, contentWidth);
             }
         }
 
@@ -765,11 +849,18 @@ internal static class ResearchWindowRenderer
 
         var buttonRect = new Rect(inner.x, rect.yMax - 44f, inner.width, 32f);
         var isCurrent = Find.ResearchManager.IsCurrentProject(project);
-        var enabled = !project.IsFinished && project.CanStartNow && !isCurrent;
-        var buttonLabel = isCurrent ? "RR_CurrentResearch".Translate().ToString() : "RR_StartResearch".Translate().ToString();
+        var enabled = isCurrent || !project.IsFinished && project.CanStartNow;
+        var buttonLabel = isCurrent ? "RR_StopResearch".Translate().ToString() : "RR_StartResearch".Translate().ToString();
         if (DrawActionButton(buttonRect, buttonLabel, enabled, isCurrent))
         {
-            Find.ResearchManager.SetCurrentProject(project);
+            if (isCurrent)
+            {
+                Find.ResearchManager.StopProject(project);
+            }
+            else
+            {
+                Find.ResearchManager.SetCurrentProject(project);
+            }
         }
     }
 
@@ -798,6 +889,24 @@ internal static class ResearchWindowRenderer
         Widgets.Label(new Rect(row.x + 31f, row.y + 2f, row.width - 64f, 24f),
             label ?? definition.LabelCap.ToString());
         Widgets.InfoCardButton(infoRect, definition);
+        y += 29f;
+    }
+
+    private static void DrawRequirementRow(string label, bool met, ref float y, float contentWidth)
+    {
+        var row = new Rect(0f, y, contentWidth, 27f);
+        Widgets.DrawBoxSolid(new Rect(row.x + 2f, row.y + 6f, 4f, row.height - 12f), met ? Completed : Current);
+        GUI.color = met ? new Color(0.78f, 0.86f, 0.78f) : new Color(1f, 0.72f, 0.48f);
+        Widgets.Label(new Rect(row.x + 13f, row.y + 2f, row.width - 13f, 24f), label);
+        GUI.color = Color.white;
+        y += 29f;
+    }
+
+    private static void DrawTextUnlockRow(string label, ref float y, float contentWidth)
+    {
+        var row = new Rect(0f, y, contentWidth, 27f);
+        Widgets.DrawBoxSolid(new Rect(row.x + 2f, row.y + 6f, 4f, row.height - 12f), Available);
+        Widgets.Label(new Rect(row.x + 13f, row.y + 2f, row.width - 13f, 24f), label);
         y += 29f;
     }
 
@@ -980,6 +1089,72 @@ internal static class ResearchWindowRenderer
         DrawBorder(rect, Border, 1);
     }
 
+    private static void DrawProgressionBackdrop(
+        IReadOnlyList<ResearchProjectDef> projects,
+        IReadOnlyDictionary<ResearchProjectDef, Rect> layout,
+        Rect viewRect)
+    {
+        var knowledgeProjects = projects.Where(project => project.knowledgeCategory != null).ToList();
+        var isKnowledgeTree = knowledgeProjects.Count > 0;
+        var basicProjects = knowledgeProjects.Where(project =>
+            project.knowledgeCategory.defName.Equals("Basic", StringComparison.OrdinalIgnoreCase)).ToList();
+        var advancedProjects = knowledgeProjects.Where(project =>
+            project.knowledgeCategory.defName.Equals("Advanced", StringComparison.OrdinalIgnoreCase)).ToList();
+
+        var transition = viewRect.width * 0.62f;
+        if (advancedProjects.Count > 0)
+        {
+            var advancedStart = advancedProjects.Min(project => layout[project].xMin);
+            var basicEnd = basicProjects.Count > 0
+                ? basicProjects.Max(project => layout[project].xMax)
+                : advancedStart - 280f;
+            transition = (basicEnd + advancedStart) * 0.5f;
+        }
+
+        const float bandWidth = 64f;
+        for (var x = 0f; x < viewRect.width; x += bandWidth)
+        {
+            var center = x + bandWidth * 0.5f;
+            Color tint;
+            if (isKnowledgeTree)
+            {
+                var blend = Mathf.SmoothStep(0f, 1f,
+                    Mathf.InverseLerp(transition - 420f, transition + 520f, center));
+                tint = Color.Lerp(new Color(0f, 0f, 0f, 0.20f),
+                    new Color(0.29f, 0.018f, 0.026f, 0.43f), blend);
+            }
+            else
+            {
+                var blend = Mathf.InverseLerp(0f, Mathf.Max(1f, viewRect.width), center);
+                tint = Color.Lerp(new Color(0.015f, 0.02f, 0.02f, 0.08f),
+                    new Color(0.20f, 0.12f, 0.035f, 0.16f), blend);
+            }
+            Widgets.DrawBoxSolid(new Rect(x, 0f, Mathf.Min(bandWidth + 1f, viewRect.width - x), viewRect.height), tint);
+        }
+
+        if (!isKnowledgeTree)
+        {
+            return;
+        }
+
+        Widgets.DrawBoxSolid(new Rect(transition - 1f, 0f, 2f, viewRect.height),
+            new Color(0.78f, 0.16f, 0.18f, 0.22f));
+        Text.Font = GameFont.Small;
+        Text.Anchor = TextAnchor.UpperCenter;
+        foreach (var categoryGroup in knowledgeProjects.GroupBy(project => project.knowledgeCategory))
+        {
+            var group = categoryGroup.ToList();
+            var left = group.Min(project => layout[project].xMin);
+            var right = group.Max(project => layout[project].xMax);
+            var categoryRect = new Rect(left, 12f, Mathf.Max(120f, right - left), 24f);
+            var advanced = categoryGroup.Key.defName.Equals("Advanced", StringComparison.OrdinalIgnoreCase);
+            GUI.color = advanced ? new Color(1f, 0.46f, 0.48f, 0.78f) : new Color(0.56f, 0.84f, 0.87f, 0.78f);
+            Widgets.Label(categoryRect, categoryGroup.Key.LabelCap);
+        }
+        GUI.color = Color.white;
+        Text.Anchor = TextAnchor.UpperLeft;
+    }
+
     private static void DrawPanel(Rect rect, Color fill, Color border)
     {
         Widgets.DrawBoxSolid(rect, fill);
@@ -1041,13 +1216,16 @@ internal static class ResearchWindowRenderer
 
     private static string StatusLabel(ResearchProjectDef project, bool isCurrent)
     {
-        return project.IsFinished
+        var state = project.IsFinished
             ? "RR_Completed".Translate().ToString()
             : isCurrent
                 ? "RR_CurrentResearch".Translate().ToString()
                 : project.CanStartNow
                     ? "RR_Available".Translate().ToString()
                     : "RR_Locked".Translate().ToString();
+        return project.knowledgeCategory == null
+            ? state
+            : $"{project.knowledgeCategory.LabelCap} · {state}";
     }
 
     private static void DrawStatusLegend(Rect rect)
@@ -1075,6 +1253,31 @@ internal static class ResearchWindowRenderer
         Text.Anchor = TextAnchor.UpperLeft;
     }
 
+    private static void DrawHeaderContext(Rect rect)
+    {
+        GUI.color = MutedText;
+        if (selectedTab != null && ResearchGraphModel.ProjectsFor(selectedTab).Any(project => project.knowledgeCategory != null))
+        {
+            var entries = DefDatabase<KnowledgeCategoryDef>.AllDefsListForReading
+                .Select(category =>
+                {
+                    var current = Find.ResearchManager.GetProject(category);
+                    var projectName = current?.LabelCap.ToString() ?? "RR_NoProjectShort".Translate().ToString();
+                    return $"{category.LabelCap}: {projectName}";
+                })
+                .ToList();
+            var text = string.Join("  ·  ", entries);
+            Widgets.Label(rect, text);
+            var hint = "RR_AnomalyConcurrentHint".Translate();
+            TooltipHandler.TipRegion(rect, $"{hint}\n{text}");
+        }
+        else
+        {
+            Widgets.Label(rect, "RR_NavigationHint".Translate());
+        }
+        GUI.color = Color.white;
+    }
+
     private static void SetZoom(float value)
     {
         var previous = zoom;
@@ -1100,7 +1303,27 @@ internal static class ResearchWindowRenderer
 
     private static void FocusCurrentProject()
     {
-        var current = Find.ResearchManager.GetProject();
+        ResearchProjectDef? current = null;
+        var tabProjects = ResearchGraphModel.ProjectsFor(selectedTab);
+        if (tabProjects.Any(project => project.knowledgeCategory != null))
+        {
+            if (selectedProject?.knowledgeCategory != null)
+            {
+                current = Find.ResearchManager.GetProject(selectedProject.knowledgeCategory);
+            }
+
+            current ??= tabProjects
+                .Where(project => project.knowledgeCategory != null)
+                .Select(project => project.knowledgeCategory)
+                .Distinct()
+                .Select(category => Find.ResearchManager.GetProject(category))
+                .FirstOrDefault(project => project != null);
+        }
+        else
+        {
+            current = Find.ResearchManager.GetProject();
+        }
+
         if (current == null)
         {
             Messages.Message("RR_NoCurrentResearch".Translate(), MessageTypeDefOf.NeutralEvent, false);
@@ -1239,6 +1462,18 @@ internal static class ResearchWindowRenderer
         internal ResearchProjectDef Project { get; }
         internal string? MatchedUnlock { get; }
         internal int Score { get; }
+    }
+
+    private sealed class SpecialRequirement
+    {
+        internal SpecialRequirement(string label, bool met)
+        {
+            Label = label;
+            Met = met;
+        }
+
+        internal string Label { get; }
+        internal bool Met { get; }
     }
 
     private sealed class TabViewState
