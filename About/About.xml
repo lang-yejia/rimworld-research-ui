@@ -17,7 +17,7 @@
   <loadAfter>
     <li>brrainz.harmony</li>
   </loadAfter>
-  <description>A vanilla-styled, data-driven redesign of RimWorld's research interface. Research projects and tabs added by other mods are discovered automatically.
+  <description>A modern, RimWorld-compatible and data-driven redesign of the research interface. The Frontier Atlas theme keeps research state, selection, and search visually distinct. Research projects and tabs added by other mods are discovered automatically.
 
-以原版风格重新设计 RimWorld 科技页面。自动读取其他 Mod 添加的标准研究项目与研究标签。</description>
+以“边疆航图”风格重新设计 RimWorld 科技页面，清晰区分研究状态、当前选择与搜索结果。自动读取其他 Mod 添加的标准研究项目与研究标签。</description>
 </ModMetaData>

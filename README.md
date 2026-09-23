@@ -1,12 +1,12 @@
 # 科技界面焕新 / Research Reframed
 
-Research Reframed is a vanilla-styled, data-driven redesign of RimWorld's research interface for RimWorld 1.6.
+Research Reframed is a RimWorld-compatible, data-driven redesign of the research interface for RimWorld 1.6. Its “Frontier Atlas” visual language combines matte frontier-industrial surfaces with bright, unambiguous information accents.
 
 ## Goals
 
 - Preserve RimWorld's research rules and save data.
 - Discover standard `ResearchProjectDef` and `ResearchTabDef` content from other mods automatically.
-- Improve readability with clearer nodes, status colors, search, a dedicated detail panel, and better use of screen space.
+- Improve readability with neutral node surfaces, non-conflicting status/search/selection signals, a dedicated detail panel, and better use of screen space.
 - Fall back to the vanilla research window if the custom renderer fails.
 - Allow holding Shift to temporarily view the vanilla interface.
 
@@ -22,6 +22,7 @@ Research Reframed is a vanilla-styled, data-driven redesign of RimWorld's resear
 - Smooth mouse-wheel details scrolling with restrained elastic edge feedback.
 - Input-isolated overlay details panel with clickable vanilla info cards, research-bench/facility requirements, exact research-point progress, and project selection.
 - English and Simplified Chinese translations.
+- “Frontier Atlas” theme with a warm graphite canvas, restrained grid, cyan information accents, amber selection focus, and a persistent status legend.
 
 ## Compatibility strategy
 

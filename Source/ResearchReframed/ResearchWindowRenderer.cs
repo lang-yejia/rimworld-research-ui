@@ -15,17 +15,27 @@ internal static class ResearchWindowRenderer
     private const float MaxZoom = 1.25f;
     private const float DragThreshold = 6f;
 
-    private static readonly Color Background = new(0.105f, 0.115f, 0.12f);
-    private static readonly Color Completed = new(0.19f, 0.29f, 0.22f);
-    private static readonly Color Current = new(0.34f, 0.29f, 0.17f);
-    private static readonly Color Available = new(0.20f, 0.24f, 0.27f);
-    private static readonly Color Locked = new(0.145f, 0.15f, 0.16f);
-    private static readonly Color Connection = new(0.43f, 0.44f, 0.42f, 0.82f);
-    private static readonly Color HighlightConnection = new(0.86f, 0.69f, 0.29f, 0.95f);
-    private static readonly Color DependentConnection = new(0.42f, 0.67f, 0.78f, 0.95f);
-    private static readonly Color SelectedBorder = new(0.95f, 0.73f, 0.22f);
-    private static readonly Color Progress = new(0.86f, 0.69f, 0.29f);
-    private static readonly Color SelectedTab = new(0.25f, 0.23f, 0.17f);
+    // Frontier Atlas: matte, warm industrial surfaces with bright, unambiguous status accents.
+    private static readonly Color Background = new(0.075f, 0.082f, 0.084f);
+    private static readonly Color GraphSurface = new(0.095f, 0.102f, 0.101f);
+    private static readonly Color HeaderSurface = new(0.135f, 0.14f, 0.13f);
+    private static readonly Color PanelSurface = new(0.155f, 0.16f, 0.148f);
+    private static readonly Color NodeSurface = new(0.185f, 0.19f, 0.175f);
+    private static readonly Color NodeSurfaceHover = new(0.215f, 0.22f, 0.202f);
+    private static readonly Color TrackSurface = new(0.055f, 0.06f, 0.058f, 0.92f);
+    private static readonly Color Border = new(0.39f, 0.385f, 0.35f, 0.72f);
+    private static readonly Color MutedText = new(0.73f, 0.70f, 0.64f);
+    private static readonly Color Completed = new(0.38f, 0.76f, 0.49f);
+    private static readonly Color Current = new(0.96f, 0.64f, 0.25f);
+    private static readonly Color Available = new(0.35f, 0.79f, 0.83f);
+    private static readonly Color Locked = new(0.50f, 0.50f, 0.47f);
+    private static readonly Color Connection = new(0.44f, 0.44f, 0.40f, 0.72f);
+    private static readonly Color HighlightConnection = new(0.96f, 0.69f, 0.30f, 0.98f);
+    private static readonly Color DependentConnection = new(0.35f, 0.79f, 0.83f, 0.96f);
+    private static readonly Color SelectedBorder = new(0.97f, 0.71f, 0.31f);
+    private static readonly Color SearchBorder = new(0.32f, 0.86f, 0.91f);
+    private static readonly Color Progress = new(0.35f, 0.79f, 0.83f);
+    private static readonly Color SelectedTab = new(0.245f, 0.235f, 0.19f);
 
     private static Vector2 graphScroll;
     private static Vector2 tabScroll;
@@ -96,7 +106,9 @@ internal static class ResearchWindowRenderer
 
     private static void DrawHeader(Rect rect)
     {
-        Widgets.DrawMenuSection(rect);
+        DrawPanel(rect, HeaderSurface, Border);
+        Widgets.DrawBoxSolid(new Rect(rect.x + 1f, rect.yMax - 2f, rect.width - 2f, 2f),
+            new Color(SelectedBorder.r, SelectedBorder.g, SelectedBorder.b, 0.55f));
         var inner = rect.ContractedBy(8f);
         var tabs = DefDatabase<ResearchTabDef>.AllDefsListForReading.OrderBy(tab => tab.label).ToList();
         if (selectedTab == null || !tabs.Contains(selectedTab))
@@ -106,7 +118,7 @@ internal static class ResearchWindowRenderer
 
         Text.Font = GameFont.Small;
         Text.Anchor = TextAnchor.MiddleLeft;
-        GUI.color = new Color(1f, 1f, 1f, 0.72f);
+        GUI.color = MutedText;
         Widgets.Label(new Rect(inner.x, inner.y, 82f, 30f), "RR_Categories".Translate());
         GUI.color = Color.white;
         Text.Anchor = TextAnchor.UpperLeft;
@@ -114,7 +126,7 @@ internal static class ResearchWindowRenderer
         var tabArea = new Rect(inner.x + 86f, inner.y, inner.width - 86f, 34f);
         DrawTabs(tabArea, tabs);
 
-        Widgets.DrawLineHorizontal(inner.x, inner.y + 39f, inner.width);
+        Widgets.DrawBoxSolid(new Rect(inner.x, inner.y + 39f, inner.width, 1f), Border);
         var controlsY = inner.y + 47f;
         const float actionsWidth = 323f;
         var actionsX = inner.xMax - actionsWidth;
@@ -150,34 +162,36 @@ internal static class ResearchWindowRenderer
         }
 
         var x = actionsX;
-        if (Widgets.ButtonText(new Rect(x, controlsY, 32f, 30f), "−"))
+        if (DrawToolbarButton(new Rect(x, controlsY, 32f, 30f), "−"))
         {
             SetZoom(zoom - 0.1f);
         }
         x += 36f;
-        if (Widgets.ButtonText(new Rect(x, controlsY, 58f, 30f), $"{zoom:P0}"))
+        if (DrawToolbarButton(new Rect(x, controlsY, 58f, 30f), $"{zoom:P0}"))
         {
             SetZoom(1f);
         }
         x += 62f;
-        if (Widgets.ButtonText(new Rect(x, controlsY, 32f, 30f), "+"))
+        if (DrawToolbarButton(new Rect(x, controlsY, 32f, 30f), "+"))
         {
             SetZoom(zoom + 0.1f);
         }
         x += 38f;
-        if (Widgets.ButtonText(new Rect(x, controlsY, 78f, 30f), "RR_Fit".Translate()))
+        if (DrawToolbarButton(new Rect(x, controlsY, 78f, 30f), "RR_Fit".Translate().ToString()))
         {
             FitGraph();
         }
         x += 84f;
-        if (Widgets.ButtonText(new Rect(x, controlsY, 101f, 30f), "RR_Current".Translate()))
+        if (DrawToolbarButton(new Rect(x, controlsY, 101f, 30f), "RR_Current".Translate().ToString(), true))
         {
             FocusCurrentProject();
         }
 
         Text.Font = GameFont.Tiny;
-        GUI.color = new Color(1f, 1f, 1f, 0.58f);
-        Widgets.Label(new Rect(inner.x, inner.y + 81f, inner.width, 18f), "RR_NavigationHint".Translate());
+        GUI.color = MutedText;
+        var hintRect = new Rect(inner.x, inner.y + 81f, inner.width * 0.57f, 18f);
+        Widgets.Label(hintRect, "RR_NavigationHint".Translate());
+        DrawStatusLegend(new Rect(hintRect.xMax, hintRect.y, inner.xMax - hintRect.xMax, hintRect.height));
         GUI.color = Color.white;
         Text.Font = GameFont.Small;
     }
@@ -192,21 +206,24 @@ internal static class ResearchWindowRenderer
         {
             var tab = tabs[index];
             var tabRect = new Rect(x, 0f, widths[index], 30f);
-            bool clicked;
-            if (selectedTab == tab)
+            var isSelected = selectedTab == tab;
+            if (isSelected)
             {
                 Widgets.DrawBoxSolid(tabRect, SelectedTab);
-                Widgets.DrawBox(tabRect, 1);
+                DrawBorder(tabRect, Border, 1);
                 Widgets.DrawBoxSolid(new Rect(tabRect.x + 6f, tabRect.yMax - 3f, tabRect.width - 12f, 3f), SelectedBorder);
-                Text.Anchor = TextAnchor.MiddleCenter;
-                Widgets.Label(tabRect, tab.LabelCap);
-                Text.Anchor = TextAnchor.UpperLeft;
-                clicked = Widgets.ButtonInvisible(tabRect);
             }
-            else
+            else if (Mouse.IsOver(tabRect))
             {
-                clicked = Widgets.ButtonText(tabRect, tab.LabelCap);
+                Widgets.DrawBoxSolid(tabRect, NodeSurfaceHover);
             }
+
+            Text.Anchor = TextAnchor.MiddleCenter;
+            GUI.color = isSelected ? Color.white : MutedText;
+            Widgets.Label(tabRect, tab.LabelCap);
+            GUI.color = Color.white;
+            Text.Anchor = TextAnchor.UpperLeft;
+            var clicked = Widgets.ButtonInvisible(tabRect);
 
             if (clicked && selectedTab != tab)
             {
@@ -292,7 +309,7 @@ internal static class ResearchWindowRenderer
         }
 
         Widgets.DrawShadowAround(rect);
-        Widgets.DrawMenuSection(rect);
+        DrawPanel(rect, PanelSurface, SearchBorder);
         if (results.Count == 0)
         {
             Text.Anchor = TextAnchor.MiddleCenter;
@@ -307,7 +324,11 @@ internal static class ResearchWindowRenderer
         foreach (var result in results)
         {
             var row = new Rect(rect.x + 5f, y, rect.width - 10f, 42f);
-            Widgets.DrawHighlightIfMouseover(row);
+            if (Mouse.IsOver(row))
+            {
+                Widgets.DrawBoxSolid(row, NodeSurfaceHover);
+                Widgets.DrawBoxSolid(new Rect(row.x, row.y + 3f, 3f, row.height - 6f), SearchBorder);
+            }
             if (Widgets.ButtonInvisible(row))
             {
                 SwitchTab(result.Project.tab);
@@ -323,7 +344,7 @@ internal static class ResearchWindowRenderer
             Text.Font = GameFont.Small;
             Widgets.Label(new Rect(row.x + 8f, row.y + 2f, row.width - 16f, 23f), result.Project.LabelCap);
             Text.Font = GameFont.Tiny;
-            GUI.color = new Color(1f, 1f, 1f, 0.58f);
+            GUI.color = MutedText;
             var subtitle = result.Project.tab.LabelCap.ToString();
             if (!result.MatchedUnlock.NullOrEmpty())
             {
@@ -340,7 +361,7 @@ internal static class ResearchWindowRenderer
     private static void DrawGraph(Rect outerRect, Rect detailsRect, Rect searchResultsRect)
     {
         lastGraphRect = outerRect;
-        Widgets.DrawMenuSection(outerRect);
+        DrawGraphBackdrop(outerRect);
         var projects = ResearchGraphModel.ProjectsFor(selectedTab);
         if (projects.Count == 0)
         {
@@ -366,8 +387,6 @@ internal static class ResearchWindowRenderer
         FocusPendingProject(layout, scrollRect, viewRect, detailsRect.width);
         EnsureSelectedVisible(layout, scrollRect, viewRect, detailsRect.width);
         DrawConnections(baseRoutes, zoom);
-        var prerequisites = ResearchGraphModel.PrerequisitePath(selectedProject);
-        var dependents = ResearchGraphModel.DependentPath(selectedProject);
         var visibleCanvas = new Rect(
             graphScroll.x - ResearchGraphLayout.NodeWidth,
             graphScroll.y - ResearchGraphLayout.NodeHeight,
@@ -377,8 +396,7 @@ internal static class ResearchWindowRenderer
         {
             if (layout[project].Overlaps(visibleCanvas))
             {
-                DrawNode(project, layout[project], !graphInputBlocked && !draggingCanvas,
-                    prerequisites, dependents);
+                DrawNode(project, layout[project], !graphInputBlocked && !draggingCanvas);
             }
         }
         Widgets.EndScrollView();
@@ -477,43 +495,38 @@ internal static class ResearchWindowRenderer
     private static void DrawNode(
         ResearchProjectDef project,
         Rect rect,
-        bool allowInput,
-        ISet<ResearchProjectDef> prerequisites,
-        ISet<ResearchProjectDef> dependents)
+        bool allowInput)
     {
         var isCurrent = Find.ResearchManager.IsCurrentProject(project);
         var normalizedSearch = ResearchGraphModel.NormalizeQuery(search);
         var matches = ResearchGraphModel.Matches(project, normalizedSearch);
-        var color = project.IsFinished ? Completed : isCurrent ? Current : project.CanStartNow ? Available : Locked;
-        var relatedToSelection = selectedProject == null || selectedProject == project ||
-                                 prerequisites.Contains(project) || dependents.Contains(project);
-        if (!relatedToSelection)
+        var statusColor = StatusColor(project, isCurrent);
+        var searchActive = !normalizedSearch.NullOrEmpty();
+        var contentAlpha = 1f;
+        if (searchActive && !matches)
         {
-            color *= 0.68f;
-            color.a = 1f;
+            contentAlpha = 0.42f;
         }
-        if (!normalizedSearch.NullOrEmpty() && !matches)
+
+        var nodeSurface = Color.Lerp(NodeSurface, Background, (1f - contentAlpha) * 0.74f);
+        if (Mouse.IsOver(rect) && allowInput)
         {
-            color *= 0.43f;
-            color.a = 1f;
+            nodeSurface = Color.Lerp(nodeSurface, NodeSurfaceHover, 0.72f);
         }
 
         if (selectedProject == project)
         {
             Widgets.DrawShadowAround(rect.ExpandedBy(5f));
-            Widgets.DrawBoxSolid(rect.ExpandedBy(4f), SelectedBorder);
+            Widgets.DrawBoxSolid(rect.ExpandedBy(4f), new Color(SelectedBorder.r, SelectedBorder.g, SelectedBorder.b, 0.88f));
         }
-        Widgets.DrawBoxSolid(rect, color);
-        var borderThickness = selectedProject == project || matches && !normalizedSearch.NullOrEmpty() ? 3 : 1;
-        if (selectedProject == project)
+        else if (searchActive && matches)
         {
-            Widgets.DrawBox(rect, borderThickness, TexUI.HighlightTex);
+            Widgets.DrawBoxSolid(rect.ExpandedBy(3f), new Color(SearchBorder.r, SearchBorder.g, SearchBorder.b, 0.80f));
         }
-        else
-        {
-            Widgets.DrawBox(rect, borderThickness);
-        }
-        Widgets.DrawHighlightIfMouseover(rect);
+        Widgets.DrawBoxSolid(rect, nodeSurface);
+        DrawBorder(rect, Border, 1);
+        Widgets.DrawBoxSolid(new Rect(rect.x, rect.y + 4f, Mathf.Max(3f, 4f * zoom), rect.height - 8f),
+            new Color(statusColor.r, statusColor.g, statusColor.b, contentAlpha));
         if (allowInput && Widgets.ButtonInvisible(rect))
         {
             selectedProject = project;
@@ -527,19 +540,27 @@ internal static class ResearchWindowRenderer
             Widgets.DrawBoxSolid(new Rect(rect.center.x - markerWidth * 0.5f, rect.y - 6f,
                 markerWidth, 5f), SelectedBorder);
         }
+        else if (searchActive && matches)
+        {
+            var markerWidth = Mathf.Min(rect.width * 0.32f, 72f * zoom);
+            Widgets.DrawBoxSolid(new Rect(rect.center.x - markerWidth * 0.5f, rect.y - 5f,
+                markerWidth, 3f), SearchBorder);
+        }
 
         var padding = Mathf.Max(5f, 8f * zoom);
         var inner = rect.ContractedBy(padding);
         Text.Font = zoom < 0.72f ? GameFont.Tiny : GameFont.Small;
         Text.Anchor = TextAnchor.UpperCenter;
+        GUI.color = new Color(1f, 1f, 1f, contentAlpha);
         Widgets.Label(new Rect(inner.x, inner.y, inner.width, 28f * zoom), project.LabelCap);
-        DrawUnlockIcons(project, new Rect(inner.x, inner.y + 30f * zoom, inner.width, 42f * zoom));
+        DrawUnlockIcons(project, new Rect(inner.x, inner.y + 30f * zoom, inner.width, 42f * zoom), contentAlpha);
 
         var progressRect = new Rect(inner.x, rect.yMax - 13f * zoom, inner.width, Mathf.Max(5f, 8f * zoom));
-        Widgets.DrawBoxSolid(progressRect, new Color(0f, 0f, 0f, 0.5f));
+        Widgets.DrawBoxSolid(progressRect, TrackSurface);
         var filled = progressRect;
         filled.width *= Mathf.Clamp01(project.ProgressPercent);
-        Widgets.DrawBoxSolid(filled, project.IsFinished ? new Color(0.38f, 0.66f, 0.42f) : Progress);
+        var progressColor = project.IsFinished ? Completed : isCurrent ? Current : Progress;
+        Widgets.DrawBoxSolid(filled, new Color(progressColor.r, progressColor.g, progressColor.b, contentAlpha));
 
         Text.Font = GameFont.Tiny;
         Text.Anchor = TextAnchor.MiddleCenter;
@@ -553,6 +574,7 @@ internal static class ResearchWindowRenderer
         if (zoom >= 0.72f)
         {
             var statusHeight = Mathf.Max(Text.LineHeight + 2f, 22f);
+            GUI.color = new Color(statusColor.r, statusColor.g, statusColor.b, contentAlpha);
             Widgets.Label(new Rect(inner.x, progressRect.y - statusHeight - 2f, inner.width, statusHeight), status);
         }
         if (allowInput)
@@ -561,9 +583,10 @@ internal static class ResearchWindowRenderer
         }
         Text.Anchor = TextAnchor.UpperLeft;
         Text.Font = GameFont.Small;
+        GUI.color = Color.white;
     }
 
-    private static void DrawUnlockIcons(ResearchProjectDef project, Rect area)
+    private static void DrawUnlockIcons(ResearchProjectDef project, Rect area, float contentAlpha)
     {
         var unlocks = ResearchGraphModel.UnlocksFor(project);
         var withIcons = unlocks.Where(unlock =>
@@ -580,7 +603,7 @@ internal static class ResearchWindowRenderer
         foreach (var unlock in withIcons)
         {
             var iconRect = new Rect(x, area.y, iconSize, iconSize);
-            GUI.color = Color.white;
+            GUI.color = new Color(1f, 1f, 1f, contentAlpha);
             DrawDefinitionIcon(iconRect, unlock.DisplayDefinition, unlock.Icon);
             TooltipHandler.TipRegion(iconRect, unlock.Label);
             x += iconSize + spacing;
@@ -593,6 +616,7 @@ internal static class ResearchWindowRenderer
             Widgets.Label(area, $"+{unlocks.Count - withIcons.Count}");
             Text.Anchor = TextAnchor.UpperLeft;
         }
+        GUI.color = Color.white;
     }
 
     private static string NodeTooltip(ResearchProjectDef project)
@@ -608,17 +632,24 @@ internal static class ResearchWindowRenderer
 
     private static void DrawDetails(Rect rect)
     {
-        Widgets.DrawMenuSection(rect);
+        DrawPanel(rect, PanelSurface, Border);
+        Widgets.DrawBoxSolid(new Rect(rect.x, rect.y, rect.width, 3f), SelectedBorder);
         var inner = rect.ContractedBy(12f);
-        if (Widgets.ButtonText(new Rect(inner.xMax - 28f, inner.y, 28f, 28f), "×"))
+        if (DrawToolbarButton(new Rect(inner.xMax - 28f, inner.y, 28f, 28f), "×"))
         {
             selectedProject = null;
             return;
         }
 
         var project = selectedProject!;
+        var isCurrentProject = Find.ResearchManager.IsCurrentProject(project);
+        var projectStatus = StatusColor(project, isCurrentProject);
+        Text.Font = GameFont.Tiny;
+        GUI.color = projectStatus;
+        Widgets.Label(new Rect(inner.x, inner.y, inner.width - 34f, 16f), StatusLabel(project, isCurrentProject));
+        GUI.color = Color.white;
         Text.Font = GameFont.Medium;
-        Widgets.Label(new Rect(inner.x, inner.y, inner.width - 34f, 34f), project.LabelCap);
+        Widgets.Label(new Rect(inner.x, inner.y + 15f, inner.width - 34f, 34f), project.LabelCap);
         Text.Font = GameFont.Small;
 
         var contentWidth = inner.width - 20f;
@@ -637,7 +668,7 @@ internal static class ResearchWindowRenderer
               (missingResearchBench ? 30f : 0f);
         var viewHeight = 265f + descriptionHeight + requirementHeight +
                          prerequisites.Count * 25f + unlocks.Count * 29f;
-        var scrollOuter = new Rect(inner.x, inner.y + 42f, inner.width, inner.height - 94f);
+        var scrollOuter = new Rect(inner.x, inner.y + 52f, inner.width, inner.height - 104f);
         UpdateDetailsScroll(scrollOuter, viewHeight);
         var scrollBeforeControls = detailsScroll.y;
         Widgets.BeginScrollView(scrollOuter, ref detailsScroll, new Rect(0f, 0f, contentWidth, viewHeight));
@@ -713,7 +744,7 @@ internal static class ResearchWindowRenderer
         {
             foreach (var prerequisite in prerequisites)
             {
-                if (Widgets.ButtonText(new Rect(0f, y, contentWidth, 24f), prerequisite.LabelCap))
+                if (DrawToolbarButton(new Rect(0f, y, contentWidth, 24f), prerequisite.LabelCap.ToString()))
                 {
                     SwitchTab(prerequisite.tab);
                     selectedProject = prerequisite;
@@ -735,7 +766,8 @@ internal static class ResearchWindowRenderer
         var buttonRect = new Rect(inner.x, rect.yMax - 44f, inner.width, 32f);
         var isCurrent = Find.ResearchManager.IsCurrentProject(project);
         var enabled = !project.IsFinished && project.CanStartNow && !isCurrent;
-        if (Widgets.ButtonText(buttonRect, isCurrent ? "RR_CurrentResearch".Translate() : "RR_StartResearch".Translate(), active: enabled))
+        var buttonLabel = isCurrent ? "RR_CurrentResearch".Translate().ToString() : "RR_StartResearch".Translate().ToString();
+        if (DrawActionButton(buttonRect, buttonLabel, enabled, isCurrent))
         {
             Find.ResearchManager.SetCurrentProject(project);
         }
@@ -749,7 +781,11 @@ internal static class ResearchWindowRenderer
         Texture2D? icon = null)
     {
         var row = new Rect(0f, y, contentWidth, 27f);
-        Widgets.DrawHighlightIfMouseover(row);
+        if (Mouse.IsOver(row))
+        {
+            Widgets.DrawBoxSolid(row, NodeSurfaceHover);
+            Widgets.DrawBoxSolid(new Rect(row.x, row.y + 3f, 3f, row.height - 6f), Available);
+        }
         var infoRect = new Rect(row.xMax - Widgets.InfoCardButtonSize, row.y + 1f,
             Widgets.InfoCardButtonSize, Widgets.InfoCardButtonSize);
         var clickRect = new Rect(row.x, row.y, row.width - Widgets.InfoCardButtonSize - 4f, row.height);
@@ -782,12 +818,12 @@ internal static class ResearchWindowRenderer
 
     private static void DrawDetailedProgress(ResearchProjectDef project, Rect rect)
     {
-        Widgets.DrawBoxSolid(rect, new Color(0.06f, 0.065f, 0.07f, 0.95f));
+        Widgets.DrawBoxSolid(rect, TrackSurface);
         var fillRect = rect.ContractedBy(2f);
         fillRect.width *= Mathf.Clamp01(project.ProgressPercent);
+        var isCurrent = Find.ResearchManager.IsCurrentProject(project);
         Widgets.DrawBoxSolid(fillRect,
-            project.IsFinished ? new Color(0.35f, 0.62f, 0.40f) : Progress);
-        Widgets.DrawBox(rect, 1);
+            project.IsFinished ? Completed : isCurrent ? Current : Progress);
 
         var progress = Mathf.Min(project.ProgressApparent, project.CostApparent);
         var pointText = $"{progress:0} / {project.CostApparent:0} ({project.ProgressPercent:P0})";
@@ -846,7 +882,7 @@ internal static class ResearchWindowRenderer
         var alpha = Mathf.Clamp01(Mathf.Abs(detailsBounce) / 12f) * 0.55f;
         var y = detailsBounce > 0f ? scrollRect.y : scrollRect.yMax - 5f;
         Widgets.DrawBoxSolid(new Rect(scrollRect.x + 3f, y, scrollRect.width - 6f, 5f),
-            new Color(Progress.r, Progress.g, Progress.b, alpha));
+            new Color(Available.r, Available.g, Available.b, alpha));
     }
 
     private static void CaptureDetailsWheel(Rect detailsRect)
@@ -870,6 +906,12 @@ internal static class ResearchWindowRenderer
             if (draggingCanvas)
             {
                 currentEvent.Use();
+            }
+            else if (graphRect.Contains(currentEvent.mousePosition))
+            {
+                // Node buttons run later in the same event and will select themselves again.
+                // A genuine empty-canvas click therefore clears the details focus cleanly.
+                selectedProject = null;
             }
             dragCandidate = false;
             draggingCanvas = false;
@@ -920,6 +962,117 @@ internal static class ResearchWindowRenderer
                 currentEvent.Use();
             }
         }
+    }
+
+    private static void DrawGraphBackdrop(Rect rect)
+    {
+        Widgets.DrawBoxSolid(rect, GraphSurface);
+        var grid = new Color(0.52f, 0.50f, 0.44f, 0.075f);
+        const float spacing = 44f;
+        for (var x = rect.x + spacing; x < rect.xMax; x += spacing)
+        {
+            Widgets.DrawBoxSolid(new Rect(x, rect.y + 1f, 1f, rect.height - 2f), grid);
+        }
+        for (var y = rect.y + spacing; y < rect.yMax; y += spacing)
+        {
+            Widgets.DrawBoxSolid(new Rect(rect.x + 1f, y, rect.width - 2f, 1f), grid);
+        }
+        DrawBorder(rect, Border, 1);
+    }
+
+    private static void DrawPanel(Rect rect, Color fill, Color border)
+    {
+        Widgets.DrawBoxSolid(rect, fill);
+        DrawBorder(rect, border, 1);
+    }
+
+    private static void DrawBorder(Rect rect, Color color, int thickness)
+    {
+        var size = Mathf.Max(1f, thickness);
+        Widgets.DrawBoxSolid(new Rect(rect.x, rect.y, rect.width, size), color);
+        Widgets.DrawBoxSolid(new Rect(rect.x, rect.yMax - size, rect.width, size), color);
+        Widgets.DrawBoxSolid(new Rect(rect.x, rect.y, size, rect.height), color);
+        Widgets.DrawBoxSolid(new Rect(rect.xMax - size, rect.y, size, rect.height), color);
+    }
+
+    private static bool DrawToolbarButton(Rect rect, string label, bool accent = false)
+    {
+        var hovered = Mouse.IsOver(rect);
+        var fill = accent
+            ? new Color(SelectedTab.r, SelectedTab.g, SelectedTab.b, hovered ? 1f : 0.88f)
+            : hovered ? NodeSurfaceHover : NodeSurface;
+        Widgets.DrawBoxSolid(rect, fill);
+        DrawBorder(rect, accent ? new Color(SelectedBorder.r, SelectedBorder.g, SelectedBorder.b, 0.62f) : Border, 1);
+        Text.Anchor = TextAnchor.MiddleCenter;
+        GUI.color = accent ? SelectedBorder : Color.white;
+        Widgets.Label(rect, label);
+        GUI.color = Color.white;
+        Text.Anchor = TextAnchor.UpperLeft;
+        return Widgets.ButtonInvisible(rect);
+    }
+
+    private static bool DrawActionButton(Rect rect, string label, bool active, bool selected)
+    {
+        var hovered = active && Mouse.IsOver(rect);
+        var fill = selected
+            ? new Color(0.34f, 0.27f, 0.14f)
+            : active
+                ? (hovered ? new Color(0.31f, 0.29f, 0.22f) : SelectedTab)
+                : new Color(NodeSurface.r, NodeSurface.g, NodeSurface.b, 0.72f);
+        var border = selected || active ? SelectedBorder : Border;
+        Widgets.DrawBoxSolid(rect, fill);
+        DrawBorder(rect, new Color(border.r, border.g, border.b, active || selected ? 0.78f : 0.42f), 1);
+        if (active || selected)
+        {
+            Widgets.DrawBoxSolid(new Rect(rect.x + 8f, rect.yMax - 3f, rect.width - 16f, 3f), SelectedBorder);
+        }
+        Text.Anchor = TextAnchor.MiddleCenter;
+        GUI.color = active || selected ? Color.white : MutedText;
+        Widgets.Label(rect, label);
+        GUI.color = Color.white;
+        Text.Anchor = TextAnchor.UpperLeft;
+        return active && Widgets.ButtonInvisible(rect);
+    }
+
+    private static Color StatusColor(ResearchProjectDef project, bool isCurrent)
+    {
+        return project.IsFinished ? Completed : isCurrent ? Current : project.CanStartNow ? Available : Locked;
+    }
+
+    private static string StatusLabel(ResearchProjectDef project, bool isCurrent)
+    {
+        return project.IsFinished
+            ? "RR_Completed".Translate().ToString()
+            : isCurrent
+                ? "RR_CurrentResearch".Translate().ToString()
+                : project.CanStartNow
+                    ? "RR_Available".Translate().ToString()
+                    : "RR_Locked".Translate().ToString();
+    }
+
+    private static void DrawStatusLegend(Rect rect)
+    {
+        Text.Font = GameFont.Tiny;
+        Text.Anchor = TextAnchor.MiddleRight;
+        var items = new[]
+        {
+            ("RR_Locked".Translate().ToString(), Locked),
+            ("RR_Completed".Translate().ToString(), Completed),
+            ("RR_Available".Translate().ToString(), Available)
+        };
+        var x = rect.xMax;
+        foreach (var item in items)
+        {
+            var textWidth = Text.CalcSize(item.Item1).x;
+            var itemWidth = textWidth + 18f;
+            x -= itemWidth;
+            Widgets.DrawBoxSolid(new Rect(x + 3f, rect.center.y - 3f, 6f, 6f), item.Item2);
+            GUI.color = MutedText;
+            Widgets.Label(new Rect(x + 13f, rect.y, textWidth, rect.height), item.Item1);
+            GUI.color = Color.white;
+            x -= 8f;
+        }
+        Text.Anchor = TextAnchor.UpperLeft;
     }
 
     private static void SetZoom(float value)
