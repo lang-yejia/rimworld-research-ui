@@ -33,6 +33,8 @@
   <RR_TechprintsProgress>Techprints applied: {0} / {1}</RR_TechprintsProgress>
   <RR_AnalysisProgress>Entities analyzed: {0} / {1} ({2})</RR_AnalysisProgress>
   <RR_PrerequisitesProgress>Prerequisites complete: {0} / {1}</RR_PrerequisitesProgress>
+  <RR_BadgePrerequisiteShort>Prereq −{0}</RR_BadgePrerequisiteShort>
+  <RR_BadgeEnvironmentShort>No setup</RR_BadgeEnvironmentShort>
   <RR_MechanitorRequirement>Requires an available mechanitor</RR_MechanitorRequirement>
   <RR_GravEngineInspection>Requires inspection of the grav engine</RR_GravEngineInspection>
   <RR_TechprintSources>Techprint and acquisition</RR_TechprintSources>

@@ -18,6 +18,7 @@ Research Reframed is a RimWorld-compatible, data-driven redesign of the research
 - Unknown-project placeholders preserve the original tree shape without leaking undiscovered entity research.
 - Color-coded, icon-first node badges reuse loaded game definitions to expose missing prerequisites, techprints, analyzed items, mechanitors, inspections, and research environments at a glance.
 - Anomaly knowledge projects are exempt from ordinary research-bench environment warnings, matching the base game's knowledge system.
+- Original “Frontier Atlas” raster emblems distinguish unknown research, prerequisite links, and missing research environments; quantitative requirements continue to use the actual loaded game-item icons.
 - Techprint faction sources, content-source attribution, and vanilla linked-unlock grouping are retained in the details panel.
 - Anomaly-aware Basic/Advanced knowledge projects, dual active-project status, monolith-gated tab visibility, entity-discovery visibility, and a black-to-red knowledge gradient.
 - Vanilla-colored unlock icons on nodes, persistent progress bars, and completed/current/available/locked states.

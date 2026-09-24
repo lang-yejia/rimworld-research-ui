@@ -40,6 +40,12 @@ internal static class ResearchWindowRenderer
     private static readonly Color TechprintAccent = new(0.94f, 0.73f, 0.27f);
     private static readonly Color MechanitorAccent = new(0.69f, 0.48f, 0.91f);
     private static readonly Color AnalysisAccent = new(0.31f, 0.78f, 0.88f);
+    private static readonly Texture2D UnknownResearchIcon =
+        ContentFinder<Texture2D>.Get("UI/ResearchReframed/UnknownResearch");
+    private static readonly Texture2D PrerequisiteIcon =
+        ContentFinder<Texture2D>.Get("UI/ResearchReframed/PrerequisiteV2");
+    private static readonly Texture2D ResearchEnvironmentIcon =
+        ContentFinder<Texture2D>.Get("UI/ResearchReframed/ResearchEnvironment");
 
     private static Vector2 graphScroll;
     private static Vector2 tabScroll;
@@ -635,9 +641,9 @@ internal static class ResearchWindowRenderer
         Text.Font = zoom < 0.72f ? GameFont.Tiny : GameFont.Small;
         GUI.color = new Color(0.76f, 0.78f, 0.78f, 0.82f);
         Widgets.Label(new Rect(inner.x, inner.y + 2f, inner.width, 28f * zoom), "RR_UnknownResearch".Translate());
-        Text.Font = GameFont.Medium;
-        GUI.color = new Color(0.58f, 0.62f, 0.63f, 0.72f);
-        Widgets.Label(new Rect(inner.x, inner.y + 33f * zoom, inner.width, 34f * zoom), "?");
+        GUI.color = new Color(1f, 1f, 1f, 0.86f);
+        Widgets.DrawTextureFitted(new Rect(inner.center.x - 26f * zoom,
+            inner.y + 30f * zoom, 52f * zoom, 42f * zoom), UnknownResearchIcon, 1f);
         Text.Font = GameFont.Tiny;
         GUI.color = Locked;
         Widgets.Label(new Rect(inner.x, rect.yMax - 36f * zoom, inner.width, 22f * zoom),
@@ -662,23 +668,23 @@ internal static class ResearchWindowRenderer
         {
             requirements.Insert(0, new SpecialRequirement(
                 "RR_PrerequisitesProgress".Translate(finishedPrerequisites, prerequisites.Count).ToString(),
-                $"{finishedPrerequisites}/{prerequisites.Count}",
+                "RR_BadgePrerequisiteShort".Translate(prerequisites.Count - finishedPrerequisites).ToString(),
                 false,
                 Danger,
-                null));
+                null,
+                PrerequisiteIcon));
         }
 
         if (project.knowledgeCategory == null && !project.IsFinished &&
             !project.PlayerHasAnyAppropriateResearchBench)
         {
-            var environmentDef = project.requiredResearchBuilding ??
-                                 project.requiredResearchFacilities?.FirstOrDefault();
             requirements.Add(new SpecialRequirement(
                 "RR_MissingResearchBench".Translate().ToString(),
-                "0/1",
+                "RR_BadgeEnvironmentShort".Translate().ToString(),
                 false,
                 Danger,
-                environmentDef));
+                null,
+                ResearchEnvironmentIcon));
         }
 
         return requirements;
@@ -696,7 +702,7 @@ internal static class ResearchWindowRenderer
         foreach (var requirement in requirements)
         {
             var label = requirement.Badge;
-            var hasIcon = requirement.IconDefinition != null;
+            var hasIcon = requirement.IconDefinition != null || requirement.Icon != null;
             var iconSize = area.height - 4f * zoom;
             var width = Mathf.Clamp(Text.CalcSize(label).x + (hasIcon ? iconSize + 15f * zoom : 12f * zoom),
                 30f * zoom, 92f * zoom);
@@ -714,7 +720,14 @@ internal static class ResearchWindowRenderer
             {
                 var iconRect = new Rect(rect.x + 3f * zoom, rect.y + 2f * zoom, iconSize, iconSize);
                 GUI.color = new Color(1f, 1f, 1f, contentAlpha);
-                DrawDefinitionIcon(iconRect, requirement.IconDefinition!, null);
+                if (requirement.IconDefinition != null)
+                {
+                    DrawDefinitionIcon(iconRect, requirement.IconDefinition, null);
+                }
+                else
+                {
+                    Widgets.DrawTextureFitted(iconRect, requirement.Icon!, 1f);
+                }
                 labelRect.xMin = iconRect.xMax + 2f * zoom;
             }
             GUI.color = new Color(accent.r, accent.g, accent.b, contentAlpha);
@@ -800,7 +813,8 @@ internal static class ResearchWindowRenderer
                 $"{project.TechprintsApplied}/{project.TechprintCount}",
                 project.TechprintRequirementMet,
                 TechprintAccent,
-                project.Techprint));
+                project.Techprint,
+                null));
         }
 
         if (project.RequiredAnalyzedThingCount > 0)
@@ -816,7 +830,8 @@ internal static class ResearchWindowRenderer
                 $"{project.AnalyzedThingsCompleted}/{project.RequiredAnalyzedThingCount}",
                 project.AnalyzedThingsRequirementsMet,
                 AnalysisAccent,
-                project.requiredAnalyzed?.FirstOrDefault()));
+                project.requiredAnalyzed?.FirstOrDefault(),
+                null));
         }
 
         if (project.requiresMechanitor)
@@ -827,7 +842,8 @@ internal static class ResearchWindowRenderer
                 $"{(met ? 1 : 0)}/1",
                 met,
                 MechanitorAccent,
-                DefDatabase<ThingDef>.GetNamedSilentFail("Mechlink")));
+                DefDatabase<ThingDef>.GetNamedSilentFail("Mechlink"),
+                null));
         }
 
         if (project.requireGravEngineInspected)
@@ -838,7 +854,8 @@ internal static class ResearchWindowRenderer
                 $"{(met ? 1 : 0)}/1",
                 met,
                 Current,
-                DefDatabase<ThingDef>.GetNamedSilentFail("GravEngine")));
+                DefDatabase<ThingDef>.GetNamedSilentFail("GravEngine"),
+                null));
         }
 
         return requirements;
@@ -1207,9 +1224,17 @@ internal static class ResearchWindowRenderer
         Widgets.DrawBoxSolid(row, new Color(accent.r, accent.g, accent.b, 0.09f));
         Widgets.DrawBoxSolid(new Rect(row.x + 2f, row.y + 5f, 4f, row.height - 10f), accent);
         var textX = row.x + 13f;
-        if (requirement.IconDefinition != null)
+        if (requirement.IconDefinition != null || requirement.Icon != null)
         {
-            DrawDefinitionIcon(new Rect(row.x + 11f, row.y + 2f, 23f, 23f), requirement.IconDefinition, null);
+            var iconRect = new Rect(row.x + 11f, row.y + 2f, 23f, 23f);
+            if (requirement.IconDefinition != null)
+            {
+                DrawDefinitionIcon(iconRect, requirement.IconDefinition, null);
+            }
+            else
+            {
+                Widgets.DrawTextureFitted(iconRect, requirement.Icon!, 1f);
+            }
             textX = row.x + 40f;
         }
         GUI.color = requirement.Met ? new Color(0.78f, 0.88f, 0.79f) :
@@ -1833,13 +1858,20 @@ internal static class ResearchWindowRenderer
 
     private sealed class SpecialRequirement
     {
-        internal SpecialRequirement(string label, string badge, bool met, Color accent, Def? iconDefinition)
+        internal SpecialRequirement(
+            string label,
+            string badge,
+            bool met,
+            Color accent,
+            Def? iconDefinition,
+            Texture2D? icon)
         {
             Label = label;
             Badge = badge;
             Met = met;
             Accent = accent;
             IconDefinition = iconDefinition;
+            Icon = icon;
         }
 
         internal string Label { get; }
@@ -1847,6 +1879,7 @@ internal static class ResearchWindowRenderer
         internal bool Met { get; }
         internal Color Accent { get; }
         internal Def? IconDefinition { get; }
+        internal Texture2D? Icon { get; }
     }
 
     private sealed class TabViewState

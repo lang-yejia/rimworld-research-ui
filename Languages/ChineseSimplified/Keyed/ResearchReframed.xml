@@ -33,6 +33,8 @@
   <RR_TechprintsProgress>研究蓝图：{0} / {1}</RR_TechprintsProgress>
   <RR_AnalysisProgress>实体分析：{0} / {1}（{2}）</RR_AnalysisProgress>
   <RR_PrerequisitesProgress>前置科技：{0} / {1} 已完成</RR_PrerequisitesProgress>
+  <RR_BadgePrerequisiteShort>前置缺少 {0}</RR_BadgePrerequisiteShort>
+  <RR_BadgeEnvironmentShort>设施缺失</RR_BadgeEnvironmentShort>
   <RR_MechanitorRequirement>需要一名可用的机械师</RR_MechanitorRequirement>
   <RR_GravEngineInspection>需要检查重力引擎</RR_GravEngineInspection>
   <RR_TechprintSources>蓝图与获取途径</RR_TechprintSources>
