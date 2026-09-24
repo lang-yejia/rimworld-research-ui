@@ -662,18 +662,23 @@ internal static class ResearchWindowRenderer
         {
             requirements.Insert(0, new SpecialRequirement(
                 "RR_PrerequisitesProgress".Translate(finishedPrerequisites, prerequisites.Count).ToString(),
-                "RR_BadgePrerequisite".Translate(finishedPrerequisites, prerequisites.Count).ToString(),
+                $"{finishedPrerequisites}/{prerequisites.Count}",
                 false,
-                Danger));
+                Danger,
+                null));
         }
 
-        if (!project.IsFinished && !project.PlayerHasAnyAppropriateResearchBench)
+        if (project.knowledgeCategory == null && !project.IsFinished &&
+            !project.PlayerHasAnyAppropriateResearchBench)
         {
+            var environmentDef = project.requiredResearchBuilding ??
+                                 project.requiredResearchFacilities?.FirstOrDefault();
             requirements.Add(new SpecialRequirement(
                 "RR_MissingResearchBench".Translate().ToString(),
-                "RR_BadgeEnvironment".Translate().ToString(),
+                "0/1",
                 false,
-                Danger));
+                Danger,
+                environmentDef));
         }
 
         return requirements;
@@ -691,7 +696,10 @@ internal static class ResearchWindowRenderer
         foreach (var requirement in requirements)
         {
             var label = requirement.Badge;
-            var width = Mathf.Clamp(Text.CalcSize(label).x + 12f * zoom, 30f * zoom, 92f * zoom);
+            var hasIcon = requirement.IconDefinition != null;
+            var iconSize = area.height - 4f * zoom;
+            var width = Mathf.Clamp(Text.CalcSize(label).x + (hasIcon ? iconSize + 15f * zoom : 12f * zoom),
+                30f * zoom, 92f * zoom);
             if (x + width > area.xMax - 26f * zoom)
             {
                 break;
@@ -701,8 +709,16 @@ internal static class ResearchWindowRenderer
             var accent = requirement.Met ? Completed : requirement.Accent;
             Widgets.DrawBoxSolid(rect, new Color(accent.r, accent.g, accent.b, 0.16f * contentAlpha));
             DrawBorder(rect, new Color(accent.r, accent.g, accent.b, 0.72f * contentAlpha), 1);
+            var labelRect = rect;
+            if (hasIcon)
+            {
+                var iconRect = new Rect(rect.x + 3f * zoom, rect.y + 2f * zoom, iconSize, iconSize);
+                GUI.color = new Color(1f, 1f, 1f, contentAlpha);
+                DrawDefinitionIcon(iconRect, requirement.IconDefinition!, null);
+                labelRect.xMin = iconRect.xMax + 2f * zoom;
+            }
             GUI.color = new Color(accent.r, accent.g, accent.b, contentAlpha);
-            Widgets.Label(rect, label);
+            Widgets.Label(labelRect, label);
             TooltipHandler.TipRegion(rect, requirement.Label);
             x += width + 4f * zoom;
             drawn++;
@@ -781,9 +797,10 @@ internal static class ResearchWindowRenderer
         {
             requirements.Add(new SpecialRequirement(
                 "RR_TechprintsProgress".Translate(project.TechprintsApplied, project.TechprintCount).ToString(),
-                "RR_BadgeTechprint".Translate(project.TechprintsApplied, project.TechprintCount).ToString(),
+                $"{project.TechprintsApplied}/{project.TechprintCount}",
                 project.TechprintRequirementMet,
-                TechprintAccent));
+                TechprintAccent,
+                project.Techprint));
         }
 
         if (project.RequiredAnalyzedThingCount > 0)
@@ -796,29 +813,32 @@ internal static class ResearchWindowRenderer
                     project.AnalyzedThingsCompleted,
                     project.RequiredAnalyzedThingCount,
                     analyzedLabels).ToString(),
-                "RR_BadgeAnalysis".Translate(
-                    project.AnalyzedThingsCompleted,
-                    project.RequiredAnalyzedThingCount).ToString(),
+                $"{project.AnalyzedThingsCompleted}/{project.RequiredAnalyzedThingCount}",
                 project.AnalyzedThingsRequirementsMet,
-                AnalysisAccent));
+                AnalysisAccent,
+                project.requiredAnalyzed?.FirstOrDefault()));
         }
 
         if (project.requiresMechanitor)
         {
+            var met = project.PlayerMechanitorRequirementMet;
             requirements.Add(new SpecialRequirement(
                 "RR_MechanitorRequirement".Translate().ToString(),
-                "RR_BadgeMechanitor".Translate().ToString(),
-                project.PlayerMechanitorRequirementMet,
-                MechanitorAccent));
+                $"{(met ? 1 : 0)}/1",
+                met,
+                MechanitorAccent,
+                DefDatabase<ThingDef>.GetNamedSilentFail("Mechlink")));
         }
 
         if (project.requireGravEngineInspected)
         {
+            var met = project.InspectionRequirementsMet;
             requirements.Add(new SpecialRequirement(
                 "RR_GravEngineInspection".Translate().ToString(),
-                "RR_BadgeInspection".Translate().ToString(),
-                project.InspectionRequirementsMet,
-                Current));
+                $"{(met ? 1 : 0)}/1",
+                met,
+                Current,
+                DefDatabase<ThingDef>.GetNamedSilentFail("GravEngine")));
         }
 
         return requirements;
@@ -857,7 +877,8 @@ internal static class ResearchWindowRenderer
         var researchFacilities = project.requiredResearchFacilities ?? new List<ThingDef>();
         var specialRequirements = BuildSpecialRequirements(project);
         var facilityCount = researchFacilities.Count;
-        var missingResearchBench = !project.IsFinished && !project.PlayerHasAnyAppropriateResearchBench;
+        var missingResearchBench = project.knowledgeCategory == null && !project.IsFinished &&
+                                   !project.PlayerHasAnyAppropriateResearchBench;
         var requirementRows = (project.requiredResearchBuilding != null ? 1 : 0) + facilityCount + specialRequirements.Count;
         var requirementLabels = (project.requiredResearchBuilding != null ? 1 : 0) + (facilityCount > 0 ? 1 : 0);
         var hasRequirements = requirementRows > 0 || missingResearchBench;
@@ -919,7 +940,7 @@ internal static class ResearchWindowRenderer
 
             foreach (var requirement in specialRequirements)
             {
-                DrawRequirementRow(requirement.Label, requirement.Met, ref y, contentWidth);
+                DrawRequirementRow(requirement, ref y, contentWidth);
             }
 
             if (missingResearchBench)
@@ -1179,12 +1200,24 @@ internal static class ResearchWindowRenderer
         return Widgets.ButtonInvisible(rect);
     }
 
-    private static void DrawRequirementRow(string label, bool met, ref float y, float contentWidth)
+    private static void DrawRequirementRow(SpecialRequirement requirement, ref float y, float contentWidth)
     {
         var row = new Rect(0f, y, contentWidth, 27f);
-        Widgets.DrawBoxSolid(new Rect(row.x + 2f, row.y + 6f, 4f, row.height - 12f), met ? Completed : Current);
-        GUI.color = met ? new Color(0.78f, 0.86f, 0.78f) : new Color(1f, 0.72f, 0.48f);
-        Widgets.Label(new Rect(row.x + 13f, row.y + 2f, row.width - 13f, 24f), label);
+        var accent = requirement.Met ? Completed : requirement.Accent;
+        Widgets.DrawBoxSolid(row, new Color(accent.r, accent.g, accent.b, 0.09f));
+        Widgets.DrawBoxSolid(new Rect(row.x + 2f, row.y + 5f, 4f, row.height - 10f), accent);
+        var textX = row.x + 13f;
+        if (requirement.IconDefinition != null)
+        {
+            DrawDefinitionIcon(new Rect(row.x + 11f, row.y + 2f, 23f, 23f), requirement.IconDefinition, null);
+            textX = row.x + 40f;
+        }
+        GUI.color = requirement.Met ? new Color(0.78f, 0.88f, 0.79f) :
+            new Color(accent.r, accent.g, accent.b, 1f);
+        Widgets.Label(new Rect(textX, row.y + 2f, row.width - textX - 45f, 24f), requirement.Label);
+        Text.Anchor = TextAnchor.MiddleRight;
+        Widgets.Label(new Rect(row.xMax - 44f, row.y + 1f, 39f, 24f), requirement.Badge);
+        Text.Anchor = TextAnchor.UpperLeft;
         GUI.color = Color.white;
         y += 29f;
     }
@@ -1800,18 +1833,20 @@ internal static class ResearchWindowRenderer
 
     private sealed class SpecialRequirement
     {
-        internal SpecialRequirement(string label, string badge, bool met, Color accent)
+        internal SpecialRequirement(string label, string badge, bool met, Color accent, Def? iconDefinition)
         {
             Label = label;
             Badge = badge;
             Met = met;
             Accent = accent;
+            IconDefinition = iconDefinition;
         }
 
         internal string Label { get; }
         internal string Badge { get; }
         internal bool Met { get; }
         internal Color Accent { get; }
+        internal Def? IconDefinition { get; }
     }
 
     private sealed class TabViewState

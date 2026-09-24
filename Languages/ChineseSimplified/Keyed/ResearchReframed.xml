@@ -35,12 +35,6 @@
   <RR_PrerequisitesProgress>前置科技：{0} / {1} 已完成</RR_PrerequisitesProgress>
   <RR_MechanitorRequirement>需要一名可用的机械师</RR_MechanitorRequirement>
   <RR_GravEngineInspection>需要检查重力引擎</RR_GravEngineInspection>
-  <RR_BadgeTechprint>蓝图 {0}/{1}</RR_BadgeTechprint>
-  <RR_BadgeAnalysis>分析 {0}/{1}</RR_BadgeAnalysis>
-  <RR_BadgeMechanitor>机械师</RR_BadgeMechanitor>
-  <RR_BadgeInspection>检查</RR_BadgeInspection>
-  <RR_BadgePrerequisite>前置 {0}/{1}</RR_BadgePrerequisite>
-  <RR_BadgeEnvironment>环境</RR_BadgeEnvironment>
   <RR_TechprintSources>蓝图与获取途径</RR_TechprintSources>
   <RR_TechprintItem>需要物品：{0}</RR_TechprintItem>
   <RR_NoKnownTechprintFaction>当前世界中没有已知的对应派系来源。</RR_NoKnownTechprintFaction>

@@ -35,12 +35,6 @@
   <RR_PrerequisitesProgress>Prerequisites complete: {0} / {1}</RR_PrerequisitesProgress>
   <RR_MechanitorRequirement>Requires an available mechanitor</RR_MechanitorRequirement>
   <RR_GravEngineInspection>Requires inspection of the grav engine</RR_GravEngineInspection>
-  <RR_BadgeTechprint>Print {0}/{1}</RR_BadgeTechprint>
-  <RR_BadgeAnalysis>Study {0}/{1}</RR_BadgeAnalysis>
-  <RR_BadgeMechanitor>Mechanitor</RR_BadgeMechanitor>
-  <RR_BadgeInspection>Inspect</RR_BadgeInspection>
-  <RR_BadgePrerequisite>Prereq {0}/{1}</RR_BadgePrerequisite>
-  <RR_BadgeEnvironment>Setup</RR_BadgeEnvironment>
   <RR_TechprintSources>Techprint and acquisition</RR_TechprintSources>
   <RR_TechprintItem>Required item: {0}</RR_TechprintItem>
   <RR_NoKnownTechprintFaction>No matching faction source is currently known in this world.</RR_NoKnownTechprintFaction>
