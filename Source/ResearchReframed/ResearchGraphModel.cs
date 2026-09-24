@@ -23,9 +23,24 @@ internal sealed class ResearchUnlock
     internal Texture2D? Icon { get; }
 }
 
+internal sealed class ResearchUnlockGroup
+{
+    internal ResearchUnlockGroup(
+        IReadOnlyList<ResearchProjectDef> additionalPrerequisites,
+        IReadOnlyList<ResearchUnlock> unlocks)
+    {
+        AdditionalPrerequisites = additionalPrerequisites;
+        Unlocks = unlocks;
+    }
+
+    internal IReadOnlyList<ResearchProjectDef> AdditionalPrerequisites { get; }
+    internal IReadOnlyList<ResearchUnlock> Unlocks { get; }
+}
+
 internal static class ResearchGraphModel
 {
     private static readonly Dictionary<ResearchProjectDef, IReadOnlyList<ResearchUnlock>> UnlockCache = new();
+    private static readonly Dictionary<ResearchProjectDef, IReadOnlyList<ResearchUnlockGroup>> UnlockGroupCache = new();
 
     internal static List<ResearchProjectDef> ProjectsFor(ResearchTabDef? tab)
     {
@@ -39,11 +54,6 @@ internal static class ResearchGraphModel
 
     internal static bool IsVisible(ResearchProjectDef project)
     {
-        if (project.IsHidden)
-        {
-            return false;
-        }
-
         return Find.Storyteller.difficulty.AllowedBy(project.hideWhen) ||
                Find.ResearchManager.IsCurrentProject(project);
     }
@@ -100,6 +110,27 @@ internal static class ResearchGraphModel
 
         result.Sort((left, right) => string.Compare(left.Label, right.Label, StringComparison.CurrentCultureIgnoreCase));
         UnlockCache[project] = result;
+        return result;
+    }
+
+    internal static IReadOnlyList<ResearchUnlockGroup> UnlockGroupsFor(ResearchProjectDef project)
+    {
+        if (UnlockGroupCache.TryGetValue(project, out var cached))
+        {
+            return cached;
+        }
+
+        var unlocksByDef = UnlocksFor(project)
+            .GroupBy(unlock => unlock.Definition)
+            .ToDictionary(group => group.Key, group => group.First());
+        var result = ResearchPrerequisitesUtility.UnlockedDefsGroupedByPrerequisites(project)
+            .Select(group => new ResearchUnlockGroup(
+                group.First.unlockedBy,
+                group.Second.Where(unlocksByDef.ContainsKey).Select(definition => unlocksByDef[definition]).ToList()))
+            .Where(group => group.Unlocks.Count > 0)
+            .ToList();
+
+        UnlockGroupCache[project] = result;
         return result;
     }
 

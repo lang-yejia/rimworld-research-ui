@@ -36,6 +36,10 @@ internal static class ResearchWindowRenderer
     private static readonly Color SearchBorder = new(0.32f, 0.86f, 0.91f);
     private static readonly Color Progress = new(0.35f, 0.79f, 0.83f);
     private static readonly Color SelectedTab = new(0.245f, 0.235f, 0.19f);
+    private static readonly Color Danger = new(0.94f, 0.28f, 0.25f);
+    private static readonly Color TechprintAccent = new(0.94f, 0.73f, 0.27f);
+    private static readonly Color MechanitorAccent = new(0.69f, 0.48f, 0.91f);
+    private static readonly Color AnalysisAccent = new(0.31f, 0.78f, 0.88f);
 
     private static Vector2 graphScroll;
     private static Vector2 tabScroll;
@@ -64,7 +68,7 @@ internal static class ResearchWindowRenderer
     public static void Draw(Rect rect)
     {
         if (selectedProject != null &&
-            (!ResearchGraphModel.IsVisible(selectedProject) ||
+            (selectedProject.IsHidden || !ResearchGraphModel.IsVisible(selectedProject) ||
              !Find.ResearchManager.TabInfoVisible(selectedProject.tab)))
         {
             selectedProject = null;
@@ -253,7 +257,7 @@ internal static class ResearchWindowRenderer
 
         var results = new List<SearchResult>();
         foreach (var project in DefDatabase<ResearchProjectDef>.AllDefsListForReading.Where(project =>
-                     project.tab != null && ResearchGraphModel.IsVisible(project) &&
+                     project.tab != null && !project.IsHidden && ResearchGraphModel.IsVisible(project) &&
                      Find.ResearchManager.TabInfoVisible(project.tab)))
         {
             var score = MatchScore(project.LabelCap.ToString(), query, 0);
@@ -522,9 +526,10 @@ internal static class ResearchWindowRenderer
         Rect rect,
         bool allowInput)
     {
+        var isHidden = project.IsHidden;
         var isCurrent = Find.ResearchManager.IsCurrentProject(project);
         var normalizedSearch = ResearchGraphModel.NormalizeQuery(search);
-        var matches = ResearchGraphModel.Matches(project, normalizedSearch);
+        var matches = !isHidden && ResearchGraphModel.Matches(project, normalizedSearch);
         var statusColor = StatusColor(project, isCurrent);
         var searchActive = !normalizedSearch.NullOrEmpty();
         var contentAlpha = 1f;
@@ -550,6 +555,13 @@ internal static class ResearchWindowRenderer
         }
         Widgets.DrawBoxSolid(rect, nodeSurface);
         DrawBorder(rect, Border, 1);
+
+        if (isHidden)
+        {
+            DrawUnknownNode(rect, allowInput);
+            return;
+        }
+
         Widgets.DrawBoxSolid(new Rect(rect.x, rect.y + 4f, Mathf.Max(3f, 4f * zoom), rect.height - 8f),
             new Color(statusColor.r, statusColor.g, statusColor.b, contentAlpha));
         if (allowInput && Widgets.ButtonInvisible(rect))
@@ -578,7 +590,16 @@ internal static class ResearchWindowRenderer
         Text.Anchor = TextAnchor.UpperCenter;
         GUI.color = new Color(1f, 1f, 1f, contentAlpha);
         Widgets.Label(new Rect(inner.x, inner.y, inner.width, 28f * zoom), project.LabelCap);
-        DrawUnlockIcons(project, new Rect(inner.x, inner.y + 30f * zoom, inner.width, 42f * zoom), contentAlpha);
+        var requirements = BuildNodeRequirements(project);
+        var hasBadges = requirements.Count > 0 && zoom >= 0.72f;
+        if (hasBadges)
+        {
+            DrawNodeRequirementBadges(requirements,
+                new Rect(inner.x, inner.y + 27f * zoom, inner.width, 19f * zoom), contentAlpha);
+        }
+        DrawUnlockIcons(project,
+            new Rect(inner.x, inner.y + (hasBadges ? 49f : 30f) * zoom,
+                inner.width, (hasBadges ? 25f : 42f) * zoom), contentAlpha);
 
         var progressRect = new Rect(inner.x, rect.yMax - 13f * zoom, inner.width, Mathf.Max(5f, 8f * zoom));
         Widgets.DrawBoxSolid(progressRect, TrackSurface);
@@ -603,6 +624,100 @@ internal static class ResearchWindowRenderer
         Text.Anchor = TextAnchor.UpperLeft;
         Text.Font = GameFont.Small;
         GUI.color = Color.white;
+    }
+
+    private static void DrawUnknownNode(Rect rect, bool allowInput)
+    {
+        Widgets.DrawBoxSolid(new Rect(rect.x, rect.y + 4f, Mathf.Max(3f, 4f * zoom), rect.height - 8f),
+            new Color(Locked.r, Locked.g, Locked.b, 0.62f));
+        var inner = rect.ContractedBy(Mathf.Max(6f, 9f * zoom));
+        Text.Anchor = TextAnchor.UpperCenter;
+        Text.Font = zoom < 0.72f ? GameFont.Tiny : GameFont.Small;
+        GUI.color = new Color(0.76f, 0.78f, 0.78f, 0.82f);
+        Widgets.Label(new Rect(inner.x, inner.y + 2f, inner.width, 28f * zoom), "RR_UnknownResearch".Translate());
+        Text.Font = GameFont.Medium;
+        GUI.color = new Color(0.58f, 0.62f, 0.63f, 0.72f);
+        Widgets.Label(new Rect(inner.x, inner.y + 33f * zoom, inner.width, 34f * zoom), "?");
+        Text.Font = GameFont.Tiny;
+        GUI.color = Locked;
+        Widgets.Label(new Rect(inner.x, rect.yMax - 36f * zoom, inner.width, 22f * zoom),
+            "RR_AwaitingDiscovery".Translate());
+        var progressRect = new Rect(inner.x, rect.yMax - 13f * zoom, inner.width, Mathf.Max(5f, 8f * zoom));
+        Widgets.DrawBoxSolid(progressRect, TrackSurface);
+        if (allowInput)
+        {
+            TooltipHandler.TipRegion(rect, "UnknownResearchDescription".Translate());
+        }
+        Text.Anchor = TextAnchor.UpperLeft;
+        Text.Font = GameFont.Small;
+        GUI.color = Color.white;
+    }
+
+    private static List<SpecialRequirement> BuildNodeRequirements(ResearchProjectDef project)
+    {
+        var requirements = BuildSpecialRequirements(project);
+        var prerequisites = project.prerequisites ?? new List<ResearchProjectDef>();
+        var finishedPrerequisites = prerequisites.Count(prerequisite => prerequisite.IsFinished);
+        if (!project.PrerequisitesCompleted && prerequisites.Count > 0)
+        {
+            requirements.Insert(0, new SpecialRequirement(
+                "RR_PrerequisitesProgress".Translate(finishedPrerequisites, prerequisites.Count).ToString(),
+                "RR_BadgePrerequisite".Translate(finishedPrerequisites, prerequisites.Count).ToString(),
+                false,
+                Danger));
+        }
+
+        if (!project.IsFinished && !project.PlayerHasAnyAppropriateResearchBench)
+        {
+            requirements.Add(new SpecialRequirement(
+                "RR_MissingResearchBench".Translate().ToString(),
+                "RR_BadgeEnvironment".Translate().ToString(),
+                false,
+                Danger));
+        }
+
+        return requirements;
+    }
+
+    private static void DrawNodeRequirementBadges(
+        IReadOnlyList<SpecialRequirement> requirements,
+        Rect area,
+        float contentAlpha)
+    {
+        Text.Font = GameFont.Tiny;
+        Text.Anchor = TextAnchor.MiddleCenter;
+        var x = area.x;
+        var drawn = 0;
+        foreach (var requirement in requirements)
+        {
+            var label = requirement.Badge;
+            var width = Mathf.Clamp(Text.CalcSize(label).x + 12f * zoom, 30f * zoom, 92f * zoom);
+            if (x + width > area.xMax - 26f * zoom)
+            {
+                break;
+            }
+
+            var rect = new Rect(x, area.y, width, area.height);
+            var accent = requirement.Met ? Completed : requirement.Accent;
+            Widgets.DrawBoxSolid(rect, new Color(accent.r, accent.g, accent.b, 0.16f * contentAlpha));
+            DrawBorder(rect, new Color(accent.r, accent.g, accent.b, 0.72f * contentAlpha), 1);
+            GUI.color = new Color(accent.r, accent.g, accent.b, contentAlpha);
+            Widgets.Label(rect, label);
+            TooltipHandler.TipRegion(rect, requirement.Label);
+            x += width + 4f * zoom;
+            drawn++;
+        }
+
+        if (drawn < requirements.Count)
+        {
+            var moreRect = new Rect(area.xMax - 25f * zoom, area.y, 25f * zoom, area.height);
+            GUI.color = new Color(1f, 1f, 1f, contentAlpha);
+            Widgets.Label(moreRect, $"+{requirements.Count - drawn}");
+            TooltipHandler.TipRegion(moreRect,
+                string.Join("\n", requirements.Skip(drawn).Select(requirement => requirement.Label)));
+        }
+        GUI.color = Color.white;
+        Text.Anchor = TextAnchor.UpperLeft;
     }
 
     private static void DrawUnlockIcons(ResearchProjectDef project, Rect area, float contentAlpha)
@@ -650,7 +765,7 @@ internal static class ResearchWindowRenderer
             : string.Join("\n", unlockLines);
         var progressText = "RR_Progress".Translate(project.ProgressPercent.ToString("P0"));
         var unlockHeading = "RR_Unlocks".Translate();
-        var requirements = BuildSpecialRequirements(project);
+        var requirements = BuildNodeRequirements(project);
         var requirementText = requirements.Count == 0
             ? string.Empty
             : $"\n\n{"RR_ResearchRequirements".Translate()}\n" +
@@ -666,7 +781,9 @@ internal static class ResearchWindowRenderer
         {
             requirements.Add(new SpecialRequirement(
                 "RR_TechprintsProgress".Translate(project.TechprintsApplied, project.TechprintCount).ToString(),
-                project.TechprintRequirementMet));
+                "RR_BadgeTechprint".Translate(project.TechprintsApplied, project.TechprintCount).ToString(),
+                project.TechprintRequirementMet,
+                TechprintAccent));
         }
 
         if (project.RequiredAnalyzedThingCount > 0)
@@ -679,21 +796,29 @@ internal static class ResearchWindowRenderer
                     project.AnalyzedThingsCompleted,
                     project.RequiredAnalyzedThingCount,
                     analyzedLabels).ToString(),
-                project.AnalyzedThingsRequirementsMet));
+                "RR_BadgeAnalysis".Translate(
+                    project.AnalyzedThingsCompleted,
+                    project.RequiredAnalyzedThingCount).ToString(),
+                project.AnalyzedThingsRequirementsMet,
+                AnalysisAccent));
         }
 
         if (project.requiresMechanitor)
         {
             requirements.Add(new SpecialRequirement(
                 "RR_MechanitorRequirement".Translate().ToString(),
-                project.PlayerMechanitorRequirementMet));
+                "RR_BadgeMechanitor".Translate().ToString(),
+                project.PlayerMechanitorRequirementMet,
+                MechanitorAccent));
         }
 
         if (project.requireGravEngineInspected)
         {
             requirements.Add(new SpecialRequirement(
                 "RR_GravEngineInspection".Translate().ToString(),
-                project.InspectionRequirementsMet));
+                "RR_BadgeInspection".Translate().ToString(),
+                project.InspectionRequirementsMet,
+                Current));
         }
 
         return requirements;
@@ -726,7 +851,9 @@ internal static class ResearchWindowRenderer
         var descriptionHeight = Text.CalcHeight(description, contentWidth);
         var prerequisites = project.prerequisites ?? new List<ResearchProjectDef>();
         var unlocks = ResearchGraphModel.UnlocksFor(project);
+        var unlockGroups = ResearchGraphModel.UnlockGroupsFor(project);
         var customUnlocks = project.customUnlockTexts ?? new List<string>();
+        var techprintFactions = TechprintFactionsFor(project);
         var researchFacilities = project.requiredResearchFacilities ?? new List<ThingDef>();
         var specialRequirements = BuildSpecialRequirements(project);
         var facilityCount = researchFacilities.Count;
@@ -738,8 +865,15 @@ internal static class ResearchWindowRenderer
             ? 0f
             : 52f + requirementRows * 29f + requirementLabels * 25f +
               (missingResearchBench ? 30f : 0f);
-        var viewHeight = 265f + descriptionHeight + requirementHeight +
-                         prerequisites.Count * 25f + unlocks.Count * 29f + customUnlocks.Count * 29f;
+        var techprintInfoHeight = project.TechprintCount > 0
+            ? 140f + techprintFactions.Count * 29f
+            : 0f;
+        var showUnlockGroupHeadings = unlockGroups.Count > 1 ||
+                                      unlockGroups.Any(group => group.AdditionalPrerequisites.Count > 0);
+        var unlockGroupHeight = showUnlockGroupHeadings ? unlockGroups.Count * 31f : 0f;
+        var viewHeight = 310f + descriptionHeight + requirementHeight + techprintInfoHeight +
+                         prerequisites.Count * 29f + unlocks.Count * 29f +
+                         customUnlocks.Count * 29f + unlockGroupHeight;
         var scrollOuter = new Rect(inner.x, inner.y + 52f, inner.width, inner.height - 104f);
         UpdateDetailsScroll(scrollOuter, viewHeight);
         var scrollBeforeControls = detailsScroll.y;
@@ -753,6 +887,10 @@ internal static class ResearchWindowRenderer
         y += 32f;
         DrawDetailedProgress(project, new Rect(0f, y, contentWidth, 30f));
         y += 44f;
+        var sourceName = project.modContentPack?.Name ?? "RimWorld";
+        DrawInfoStrip(new Rect(0f, y, contentWidth, 25f),
+            "RR_ContentSource".Translate(sourceName).ToString(), Available);
+        y += 33f;
         Widgets.Label(new Rect(0f, y, contentWidth, descriptionHeight), description);
         y += descriptionHeight + 18f;
 
@@ -766,7 +904,7 @@ internal static class ResearchWindowRenderer
             {
                 Widgets.Label(new Rect(0f, y, contentWidth, 24f), "RR_RequiredBench".Translate());
                 y += 25f;
-                DrawDefRow(project.requiredResearchBuilding, ref y, contentWidth);
+                DrawDefRequirementRow(project.requiredResearchBuilding, !missingResearchBench, ref y, contentWidth);
             }
 
             if (facilityCount > 0)
@@ -775,7 +913,7 @@ internal static class ResearchWindowRenderer
                 y += 25f;
                 foreach (var facility in researchFacilities)
                 {
-                    DrawDefRow(facility, ref y, contentWidth);
+                    DrawDefRequirementRow(facility, !missingResearchBench, ref y, contentWidth);
                 }
             }
 
@@ -786,12 +924,47 @@ internal static class ResearchWindowRenderer
 
             if (missingResearchBench)
             {
-                GUI.color = new Color(1f, 0.66f, 0.28f);
-                Widgets.Label(new Rect(0f, y, contentWidth, 28f), "RR_MissingResearchBench".Translate());
-                GUI.color = Color.white;
+                DrawInfoStrip(new Rect(0f, y, contentWidth, 28f),
+                    "RR_MissingResearchBench".Translate().ToString(), Danger);
                 y += 30f;
             }
             y += 10f;
+        }
+
+        if (project.TechprintCount > 0)
+        {
+            Text.Font = GameFont.Medium;
+            GUI.color = TechprintAccent;
+            Widgets.Label(new Rect(0f, y, contentWidth, 30f), "RR_TechprintSources".Translate());
+            GUI.color = Color.white;
+            y += 32f;
+            Text.Font = GameFont.Small;
+            if (project.Techprint != null)
+            {
+                DrawDefRow(project.Techprint, ref y, contentWidth,
+                    "RR_TechprintItem".Translate(project.Techprint.LabelCap).ToString(), project.Techprint.uiIcon);
+            }
+            Text.Font = GameFont.Tiny;
+            var sourceHint = "ResearchTechprintsFromFactions".Translate().ToString();
+            var sourceHintHeight = Text.CalcHeight(sourceHint, contentWidth);
+            Widgets.Label(new Rect(0f, y, contentWidth, sourceHintHeight), sourceHint);
+            y += sourceHintHeight + 5f;
+            if (techprintFactions.Count == 0)
+            {
+                GUI.color = MutedText;
+                Widgets.Label(new Rect(0f, y, contentWidth, 25f), "RR_NoKnownTechprintFaction".Translate());
+                GUI.color = Color.white;
+                y += 29f;
+            }
+            else
+            {
+                foreach (var faction in techprintFactions)
+                {
+                    DrawFactionRow(faction, ref y, contentWidth);
+                }
+            }
+            Text.Font = GameFont.Small;
+            y += 8f;
         }
 
         Text.Font = GameFont.Medium;
@@ -805,9 +978,26 @@ internal static class ResearchWindowRenderer
         }
         else
         {
-            foreach (var unlock in unlocks)
+            if (unlockGroups.Count == 0)
             {
-                DrawDefRow(unlock.DisplayDefinition, ref y, contentWidth, unlock.Label, unlock.Icon);
+                foreach (var unlock in unlocks)
+                {
+                    DrawDefRow(unlock.DisplayDefinition, ref y, contentWidth, unlock.Label, unlock.Icon);
+                }
+            }
+            else
+            {
+                foreach (var group in unlockGroups)
+                {
+                    if (showUnlockGroupHeadings)
+                    {
+                        DrawUnlockGroupHeader(group, ref y, contentWidth);
+                    }
+                    foreach (var unlock in group.Unlocks)
+                    {
+                        DrawDefRow(unlock.DisplayDefinition, ref y, contentWidth, unlock.Label, unlock.Icon);
+                    }
+                }
             }
             foreach (var customUnlock in customUnlocks)
             {
@@ -828,14 +1018,14 @@ internal static class ResearchWindowRenderer
         {
             foreach (var prerequisite in prerequisites)
             {
-                if (DrawToolbarButton(new Rect(0f, y, contentWidth, 24f), prerequisite.LabelCap.ToString()))
+                if (DrawPrerequisiteButton(new Rect(0f, y, contentWidth, 27f), prerequisite))
                 {
                     SwitchTab(prerequisite.tab);
                     selectedProject = prerequisite;
                     pendingFocus = prerequisite;
                     ResetDetailsScroll();
                 }
-                y += 25f;
+                y += 29f;
             }
         }
         Widgets.EndScrollView();
@@ -890,6 +1080,103 @@ internal static class ResearchWindowRenderer
             label ?? definition.LabelCap.ToString());
         Widgets.InfoCardButton(infoRect, definition);
         y += 29f;
+    }
+
+    private static void DrawDefRequirementRow(Def definition, bool met, ref float y, float contentWidth)
+    {
+        var row = new Rect(0f, y, contentWidth, 27f);
+        var accent = met ? Completed : Danger;
+        Widgets.DrawBoxSolid(row, new Color(accent.r, accent.g, accent.b, met ? 0.08f : 0.15f));
+        Widgets.DrawBoxSolid(new Rect(row.x, row.y + 3f, 4f, row.height - 6f), accent);
+        DrawDefinitionIcon(new Rect(row.x + 8f, row.y + 1f, 24f, 24f), definition, null);
+        GUI.color = met ? Color.white : new Color(1f, 0.66f, 0.62f);
+        Widgets.Label(new Rect(row.x + 38f, row.y + 2f, row.width - 72f, 24f), definition.LabelCap);
+        GUI.color = Color.white;
+        var infoRect = new Rect(row.xMax - Widgets.InfoCardButtonSize, row.y + 1f,
+            Widgets.InfoCardButtonSize, Widgets.InfoCardButtonSize);
+        Widgets.InfoCardButton(infoRect, definition);
+        if (Widgets.ButtonInvisible(new Rect(row.x, row.y, row.width - Widgets.InfoCardButtonSize - 4f, row.height)))
+        {
+            Find.WindowStack.Add(new Dialog_InfoCard(definition, null));
+        }
+        y += 29f;
+    }
+
+    private static void DrawInfoStrip(Rect rect, string label, Color accent)
+    {
+        Widgets.DrawBoxSolid(rect, new Color(accent.r, accent.g, accent.b, 0.10f));
+        Widgets.DrawBoxSolid(new Rect(rect.x, rect.y + 3f, 4f, rect.height - 6f), accent);
+        GUI.color = new Color(0.90f, 0.92f, 0.90f);
+        Widgets.Label(new Rect(rect.x + 11f, rect.y + 2f, rect.width - 14f, rect.height - 3f), label);
+        GUI.color = Color.white;
+    }
+
+    private static List<Faction> TechprintFactionsFor(ResearchProjectDef project)
+    {
+        var result = new List<Faction>();
+        if (project.heldByFactionCategoryTags == null)
+        {
+            return result;
+        }
+
+        foreach (var tag in project.heldByFactionCategoryTags)
+        {
+            foreach (var faction in Find.FactionManager.AllFactionsInViewOrder.Where(faction =>
+                         faction.def.categoryTag == tag))
+            {
+                if (!result.Contains(faction))
+                {
+                    result.Add(faction);
+                }
+            }
+        }
+        return result;
+    }
+
+    private static void DrawFactionRow(Faction faction, ref float y, float contentWidth)
+    {
+        var row = new Rect(0f, y, contentWidth, 27f);
+        if (Mouse.IsOver(row))
+        {
+            Widgets.DrawBoxSolid(row, NodeSurfaceHover);
+        }
+        FactionUIUtility.DrawFactionIconWithTooltip(new Rect(row.x + 2f, row.y + 2f, 23f, 23f), faction);
+        Widgets.Label(new Rect(row.x + 32f, row.y + 2f, row.width - 34f, 24f), faction.Name);
+        y += 29f;
+    }
+
+    private static void DrawUnlockGroupHeader(ResearchUnlockGroup group, ref float y, float contentWidth)
+    {
+        var direct = group.AdditionalPrerequisites.Count == 0;
+        var met = direct || group.AdditionalPrerequisites.All(prerequisite => prerequisite.IsFinished);
+        var accent = direct ? Available : met ? Completed : Danger;
+        var prerequisites = string.Join(", ", group.AdditionalPrerequisites.Select(prerequisite => prerequisite.LabelCap));
+        var label = direct
+            ? "RR_DirectUnlocks".Translate().ToString()
+            : "RR_LinkedUnlocks".Translate(prerequisites).ToString();
+        DrawInfoStrip(new Rect(0f, y, contentWidth, 27f), label, accent);
+        if (!direct)
+        {
+            TooltipHandler.TipRegion(new Rect(0f, y, contentWidth, 27f),
+                "RR_LinkedUnlocksTip".Translate(prerequisites));
+        }
+        y += 31f;
+    }
+
+    private static bool DrawPrerequisiteButton(Rect rect, ResearchProjectDef prerequisite)
+    {
+        var met = prerequisite.IsFinished;
+        var accent = met ? Completed : Danger;
+        Widgets.DrawBoxSolid(rect, Mouse.IsOver(rect)
+            ? new Color(accent.r, accent.g, accent.b, 0.17f)
+            : new Color(accent.r, accent.g, accent.b, 0.09f));
+        DrawBorder(rect, new Color(accent.r, accent.g, accent.b, 0.62f), 1);
+        Widgets.DrawBoxSolid(new Rect(rect.x, rect.y + 4f, 4f, rect.height - 8f), accent);
+        GUI.color = met ? new Color(0.82f, 0.94f, 0.84f) : new Color(1f, 0.67f, 0.64f);
+        Widgets.Label(new Rect(rect.x + 12f, rect.y + 2f, rect.width - 16f, rect.height - 3f),
+            $"{(met ? "✓" : "•")} {prerequisite.LabelCap}");
+        GUI.color = Color.white;
+        return Widgets.ButtonInvisible(rect);
     }
 
     private static void DrawRequirementRow(string label, bool met, ref float y, float contentWidth)
@@ -1134,25 +1421,72 @@ internal static class ResearchWindowRenderer
 
         if (!isKnowledgeTree)
         {
+            DrawZoneHeader(new Rect(18f, 12f, Mathf.Min(330f, viewRect.width - 36f), 44f),
+                "RR_MainResearchZone".Translate().ToString(),
+                "RR_MainResearchZoneHint".Translate().ToString(),
+                Available,
+                null);
             return;
         }
 
-        Widgets.DrawBoxSolid(new Rect(transition - 1f, 0f, 2f, viewRect.height),
-            new Color(0.78f, 0.16f, 0.18f, 0.22f));
-        Text.Font = GameFont.Small;
-        Text.Anchor = TextAnchor.UpperCenter;
-        foreach (var categoryGroup in knowledgeProjects.GroupBy(project => project.knowledgeCategory))
+        var categoryGroups = knowledgeProjects.GroupBy(project => project.knowledgeCategory)
+            .Select(group => new
+            {
+                Category = group.Key,
+                Projects = group.ToList(),
+                Center = group.Average(project => layout[project].center.x)
+            })
+            .OrderBy(group => group.Center)
+            .ToList();
+        for (var index = 0; index < categoryGroups.Count; index++)
         {
-            var group = categoryGroup.ToList();
-            var left = group.Min(project => layout[project].xMin);
-            var right = group.Max(project => layout[project].xMax);
-            var categoryRect = new Rect(left, 12f, Mathf.Max(120f, right - left), 24f);
-            var advanced = categoryGroup.Key.defName.Equals("Advanced", StringComparison.OrdinalIgnoreCase);
-            GUI.color = advanced ? new Color(1f, 0.46f, 0.48f, 0.78f) : new Color(0.56f, 0.84f, 0.87f, 0.78f);
-            Widgets.Label(categoryRect, categoryGroup.Key.LabelCap);
+            var group = categoryGroups[index];
+            var left = index == 0
+                ? 8f
+                : (categoryGroups[index - 1].Center + group.Center) * 0.5f;
+            var right = index == categoryGroups.Count - 1
+                ? viewRect.width - 8f
+                : (group.Center + categoryGroups[index + 1].Center) * 0.5f;
+            var accent = group.Category.color;
+            var zoneRect = new Rect(left, 7f, Mathf.Max(80f, right - left), viewRect.height - 14f);
+            Widgets.DrawBoxSolid(zoneRect, new Color(accent.r, accent.g, accent.b, 0.035f));
+            DrawBorder(zoneRect, new Color(accent.r, accent.g, accent.b, 0.18f), 1);
+            if (index > 0)
+            {
+                Widgets.DrawBoxSolid(new Rect(left - 2f, 7f, 4f, viewRect.height - 14f),
+                    new Color(accent.r, accent.g, accent.b, 0.26f));
+            }
+
+            var headerWidth = Mathf.Min(310f, Mathf.Max(160f, zoneRect.width - 28f));
+            DrawZoneHeader(new Rect(zoneRect.x + 14f, 12f, headerWidth, 44f),
+                "RR_KnowledgeResearchZone".Translate(group.Category.LabelCap).ToString(),
+                "RR_KnowledgeResearchZoneHint".Translate().ToString(),
+                accent,
+                group.Category.Tex);
         }
+    }
+
+    private static void DrawZoneHeader(Rect rect, string title, string subtitle, Color accent, Texture2D? icon)
+    {
+        Widgets.DrawBoxSolid(rect, new Color(0.07f, 0.075f, 0.073f, 0.96f));
+        DrawBorder(rect, new Color(accent.r, accent.g, accent.b, 0.72f), 1);
+        Widgets.DrawBoxSolid(new Rect(rect.x, rect.y, rect.width, 3f), accent);
+        var textX = rect.x + 11f;
+        if (icon != null)
+        {
+            GUI.color = accent;
+            GUI.DrawTexture(new Rect(rect.x + 9f, rect.y + 11f, 23f, 23f), icon, ScaleMode.ScaleToFit);
+            GUI.color = Color.white;
+            textX = rect.x + 39f;
+        }
+        Text.Font = GameFont.Small;
+        GUI.color = new Color(accent.r, accent.g, accent.b, 0.98f);
+        Widgets.Label(new Rect(textX, rect.y + 5f, rect.xMax - textX - 8f, 22f), title);
+        Text.Font = GameFont.Tiny;
+        GUI.color = MutedText;
+        Widgets.Label(new Rect(textX, rect.y + 24f, rect.xMax - textX - 8f, 17f), subtitle);
         GUI.color = Color.white;
-        Text.Anchor = TextAnchor.UpperLeft;
+        Text.Font = GameFont.Small;
     }
 
     private static void DrawPanel(Rect rect, Color fill, Color border)
@@ -1466,14 +1800,18 @@ internal static class ResearchWindowRenderer
 
     private sealed class SpecialRequirement
     {
-        internal SpecialRequirement(string label, bool met)
+        internal SpecialRequirement(string label, string badge, bool met, Color accent)
         {
             Label = label;
+            Badge = badge;
             Met = met;
+            Accent = accent;
         }
 
         internal string Label { get; }
+        internal string Badge { get; }
         internal bool Met { get; }
+        internal Color Accent { get; }
     }
 
     private sealed class TabViewState

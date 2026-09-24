@@ -14,7 +14,8 @@ internal static class ResearchGraphLayout
     internal const float ColumnSpacing = 374f;
     internal const float RowSpacing = 196f;
 
-    private const float Padding = 42f;
+    private const float HorizontalPadding = 42f;
+    private const float VerticalPadding = 82f;
     private const int SweepCount = 8;
     private static readonly Dictionary<ResearchTabDef, CacheEntry> Cache = new();
 
@@ -102,7 +103,7 @@ internal static class ResearchGraphLayout
         }
 
         var largestColumn = columns.Values.Max(column => column.Count);
-        var columnPositions = new Dictionary<int, float> { [0] = Padding };
+        var columnPositions = new Dictionary<int, float> { [0] = HorizontalPadding };
         for (var rank = 1; rank <= maximumRank; rank++)
         {
             var previousFanOut = columns.TryGetValue(rank - 1, out var previousColumn)
@@ -121,7 +122,7 @@ internal static class ResearchGraphLayout
             {
                 result[column[index]] = new Rect(
                     columnPositions[pair.Key],
-                    Padding + verticalOffset + index * RowSpacing,
+                    VerticalPadding + verticalOffset + index * RowSpacing,
                     NodeWidth,
                     NodeHeight);
             }

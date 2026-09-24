@@ -3,6 +3,8 @@
   <RR_Search>Search research...</RR_Search>
   <RR_NoSearchResults>No matching research or unlock was found.</RR_NoSearchResults>
   <RR_SearchUnlockMatch>Unlocks: {0}</RR_SearchUnlockMatch>
+  <RR_UnknownResearch>Unknown research</RR_UnknownResearch>
+  <RR_AwaitingDiscovery>Awaiting discovery</RR_AwaitingDiscovery>
   <RR_Categories>Research tabs</RR_Categories>
   <RR_NavigationHint>Left-drag to pan · Ctrl+wheel to zoom · Hold Shift for the vanilla interface</RR_NavigationHint>
   <RR_Fit>Fit</RR_Fit>
@@ -20,6 +22,7 @@
   <RR_Available>Available</RR_Available>
   <RR_Cost>Base cost: {0}</RR_Cost>
   <RR_KnowledgeCost>{0} knowledge: {1}</RR_KnowledgeCost>
+  <RR_ContentSource>Content source: {0}</RR_ContentSource>
   <RR_Progress>Research progress: {0}</RR_Progress>
   <RR_Unlocks>Unlocks</RR_Unlocks>
   <RR_NoUnlocks>No displayable unlocks</RR_NoUnlocks>
@@ -29,8 +32,25 @@
   <RR_MissingResearchBench>Your colony lacks an appropriate research bench or facility.</RR_MissingResearchBench>
   <RR_TechprintsProgress>Techprints applied: {0} / {1}</RR_TechprintsProgress>
   <RR_AnalysisProgress>Entities analyzed: {0} / {1} ({2})</RR_AnalysisProgress>
+  <RR_PrerequisitesProgress>Prerequisites complete: {0} / {1}</RR_PrerequisitesProgress>
   <RR_MechanitorRequirement>Requires an available mechanitor</RR_MechanitorRequirement>
   <RR_GravEngineInspection>Requires inspection of the grav engine</RR_GravEngineInspection>
+  <RR_BadgeTechprint>Print {0}/{1}</RR_BadgeTechprint>
+  <RR_BadgeAnalysis>Study {0}/{1}</RR_BadgeAnalysis>
+  <RR_BadgeMechanitor>Mechanitor</RR_BadgeMechanitor>
+  <RR_BadgeInspection>Inspect</RR_BadgeInspection>
+  <RR_BadgePrerequisite>Prereq {0}/{1}</RR_BadgePrerequisite>
+  <RR_BadgeEnvironment>Setup</RR_BadgeEnvironment>
+  <RR_TechprintSources>Techprint and acquisition</RR_TechprintSources>
+  <RR_TechprintItem>Required item: {0}</RR_TechprintItem>
+  <RR_NoKnownTechprintFaction>No matching faction source is currently known in this world.</RR_NoKnownTechprintFaction>
+  <RR_DirectUnlocks>Direct unlocks</RR_DirectUnlocks>
+  <RR_LinkedUnlocks>Linked unlocks · also requires: {0}</RR_LinkedUnlocks>
+  <RR_LinkedUnlocksTip>These items require this project together with: {0}</RR_LinkedUnlocksTip>
+  <RR_MainResearchZone>Frontier research atlas</RR_MainResearchZone>
+  <RR_MainResearchZoneHint>Progressing from foundations toward advanced engineering</RR_MainResearchZoneHint>
+  <RR_KnowledgeResearchZone>{0} knowledge sector</RR_KnowledgeResearchZone>
+  <RR_KnowledgeResearchZoneHint>Independent knowledge pool · runs alongside the other tier</RR_KnowledgeResearchZoneHint>
   <RR_NoProjectShort>None selected</RR_NoProjectShort>
   <RR_AnomalyConcurrentHint>Anomaly research supports one Basic and one Advanced project at the same time; the game tracks both knowledge categories independently.</RR_AnomalyConcurrentHint>
   <RR_NoCurrentResearch>No research project is currently selected.</RR_NoCurrentResearch>

@@ -15,6 +15,9 @@ Research Reframed is a RimWorld-compatible, data-driven redesign of the research
 - Near-full-screen research canvas that follows the current resolution and UI scale.
 - Dynamic research tabs and projects, including standard content added by other mods.
 - Vanilla-compatible hidden-project, difficulty, techprint, entity-analysis, mechanitor, grav-engine, and research-facility requirements.
+- Unknown-project placeholders preserve the original tree shape without leaking undiscovered entity research.
+- Color-coded node badges expose missing prerequisites, techprints, analysis, mechanitors, inspections, and research environments at a glance.
+- Techprint faction sources, content-source attribution, and vanilla linked-unlock grouping are retained in the details panel.
 - Anomaly-aware Basic/Advanced knowledge projects, dual active-project status, monolith-gated tab visibility, entity-discovery visibility, and a black-to-red knowledge gradient.
 - Vanilla-colored unlock icons on nodes, persistent progress bars, and completed/current/available/locked states.
 - Search by research name, `defName`, or unlocked content with ranked, clickable cross-tab results and stable graph layout.

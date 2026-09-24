@@ -3,6 +3,8 @@
   <RR_Search>搜索科技……</RR_Search>
   <RR_NoSearchResults>没有找到对应的科技或解锁内容。</RR_NoSearchResults>
   <RR_SearchUnlockMatch>解锁：{0}</RR_SearchUnlockMatch>
+  <RR_UnknownResearch>未知科技</RR_UnknownResearch>
+  <RR_AwaitingDiscovery>等待发现</RR_AwaitingDiscovery>
   <RR_Categories>科技分类</RR_Categories>
   <RR_NavigationHint>按住左键拖动画布 · Ctrl＋滚轮缩放 · 按住 Shift 暂时查看原版界面</RR_NavigationHint>
   <RR_Fit>全览</RR_Fit>
@@ -20,6 +22,7 @@
   <RR_Available>可研究</RR_Available>
   <RR_Cost>基础研究量：{0}</RR_Cost>
   <RR_KnowledgeCost>{0}知识：{1}</RR_KnowledgeCost>
+  <RR_ContentSource>内容来源：{0}</RR_ContentSource>
   <RR_Progress>研究进度：{0}</RR_Progress>
   <RR_Unlocks>解锁内容</RR_Unlocks>
   <RR_NoUnlocks>没有可显示的解锁项目</RR_NoUnlocks>
@@ -29,8 +32,25 @@
   <RR_MissingResearchBench>当前殖民地缺少合适的研究台或研究设施。</RR_MissingResearchBench>
   <RR_TechprintsProgress>研究蓝图：{0} / {1}</RR_TechprintsProgress>
   <RR_AnalysisProgress>实体分析：{0} / {1}（{2}）</RR_AnalysisProgress>
+  <RR_PrerequisitesProgress>前置科技：{0} / {1} 已完成</RR_PrerequisitesProgress>
   <RR_MechanitorRequirement>需要一名可用的机械师</RR_MechanitorRequirement>
   <RR_GravEngineInspection>需要检查重力引擎</RR_GravEngineInspection>
+  <RR_BadgeTechprint>蓝图 {0}/{1}</RR_BadgeTechprint>
+  <RR_BadgeAnalysis>分析 {0}/{1}</RR_BadgeAnalysis>
+  <RR_BadgeMechanitor>机械师</RR_BadgeMechanitor>
+  <RR_BadgeInspection>检查</RR_BadgeInspection>
+  <RR_BadgePrerequisite>前置 {0}/{1}</RR_BadgePrerequisite>
+  <RR_BadgeEnvironment>环境</RR_BadgeEnvironment>
+  <RR_TechprintSources>蓝图与获取途径</RR_TechprintSources>
+  <RR_TechprintItem>需要物品：{0}</RR_TechprintItem>
+  <RR_NoKnownTechprintFaction>当前世界中没有已知的对应派系来源。</RR_NoKnownTechprintFaction>
+  <RR_DirectUnlocks>直接解锁</RR_DirectUnlocks>
+  <RR_LinkedUnlocks>联动解锁 · 还需要：{0}</RR_LinkedUnlocks>
+  <RR_LinkedUnlocksTip>这些内容需要本科技和以下科技共同完成：{0}</RR_LinkedUnlocksTip>
+  <RR_MainResearchZone>边疆研究航图</RR_MainResearchZone>
+  <RR_MainResearchZoneHint>由基础理论向高阶工程逐步推进</RR_MainResearchZoneHint>
+  <RR_KnowledgeResearchZone>{0}知识区</RR_KnowledgeResearchZone>
+  <RR_KnowledgeResearchZoneHint>独立知识池 · 可与另一层级同时研究</RR_KnowledgeResearchZoneHint>
   <RR_NoProjectShort>未选择</RR_NoProjectShort>
   <RR_AnomalyConcurrentHint>异象研究允许同时选择一个基础项目和一个高级项目；游戏会分别管理两类知识进度。</RR_AnomalyConcurrentHint>
   <RR_NoCurrentResearch>当前没有正在进行的研究。</RR_NoCurrentResearch>
